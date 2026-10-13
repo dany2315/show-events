@@ -236,8 +236,8 @@ export function ShowStage({
 
       {/* Objectif atteint */}
       {goalBanner && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ background: "color-mix(in oklab, var(--show-bg) 55%, transparent)" }}>
-          <div className="animate-in zoom-in-50 fade-in duration-700 text-center">
+        <div className="show-spotlight-backdrop pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
+          <div className="show-card-solid animate-in zoom-in-50 fade-in duration-700 rounded-[48px] px-28 py-16 text-center">
             <div className="show-display show-accent-text font-bold" style={{ fontSize: 150, lineHeight: 1.05 }}>
               {t.goalReached}
             </div>
@@ -250,10 +250,9 @@ export function ShowStage({
 
       {/* Message de la régie */}
       {control.overlay && (
-        <div key={control.overlayAt ?? "overlay"} className="pointer-events-none absolute inset-x-0 bottom-[6%] flex justify-center px-[8%]">
+        <div key={control.overlayAt ?? "overlay"} className="pointer-events-none absolute inset-x-0 bottom-[6%] z-40 flex justify-center px-[8%]">
           <div
-            className="show-panel animate-in slide-in-from-bottom-10 fade-in duration-700 rounded-[32px] px-16 py-8 text-center"
-            style={{ borderColor: "var(--show-accent)" }}
+            className="show-card-solid animate-in slide-in-from-bottom-10 fade-in duration-700 rounded-[32px] px-16 py-8 text-center"
           >
             <p className="show-display text-balance font-semibold" style={{ fontSize: 64, lineHeight: 1.15 }}>
               {typo(control.overlay, locale)}
@@ -262,7 +261,7 @@ export function ShowStage({
         </div>
       )}
 
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 size-full" />
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-50 size-full" />
     </div>
   );
 }
@@ -285,12 +284,12 @@ function Spotlight({ donation, event, label }: { donation: PublicDonation; event
   }, [donation.id]);
 
   return (
-    <div ref={ref} className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ background: "color-mix(in oklab, var(--show-bg) 72%, transparent)", perspective: 1200 }}>
-      <div data-card className="show-panel rounded-[48px] px-28 py-20 text-center" style={{ borderColor: "var(--show-accent)", minWidth: 900 }}>
-        <div data-line className="font-semibold uppercase" style={{ fontSize: 30, letterSpacing: "0.3em", color: "var(--show-muted)" }}>
+    <div ref={ref} className="show-spotlight-backdrop pointer-events-none absolute inset-0 z-40 flex items-center justify-center" style={{ perspective: 1200 }}>
+      <div data-card className="show-card-solid max-w-[1500px] rounded-[48px] px-28 py-20 text-center" style={{ minWidth: 900 }}>
+        <div data-line className="font-bold uppercase" style={{ fontSize: 32, letterSpacing: "0.3em", color: "var(--show-accent)" }}>
           {label}
         </div>
-        <div data-line className="show-display mt-6 font-semibold" style={{ fontSize: 110, lineHeight: 1.05 }}>
+        <div data-line className="show-display mt-6 font-semibold text-balance break-words" style={{ fontSize: donation.donorName.length > 28 ? 80 : 110, lineHeight: 1.05 }}>
           {donation.donorName}
         </div>
         <div data-line className="tabular show-accent-text mt-6 font-extrabold" style={{ fontSize: 150, lineHeight: 1 }}>

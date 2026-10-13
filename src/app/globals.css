@@ -209,6 +209,27 @@
     backdrop-filter: blur(14px);
   }
 }
+/* Carte opaque des moments forts (projecteur, message de la régie, objectif atteint) :
+   lisibilité maximale, quel que soit ce qui se trouve derrière. */
+.show-card-solid {
+  background:
+    radial-gradient(120% 120% at 50% 0%, color-mix(in oklab, var(--show-accent) 16%, var(--show-bg)) 0%, var(--show-bg) 70%);
+  border: 3px solid var(--show-accent);
+  box-shadow:
+    0 0 0 10px color-mix(in oklab, var(--show-accent) 14%, transparent),
+    0 0 120px color-mix(in oklab, var(--show-accent) 40%, transparent),
+    0 50px 140px -30px rgba(0, 0, 0, 0.85);
+  color: var(--show-text);
+}
+.show-spotlight-backdrop {
+  background: color-mix(in oklab, var(--show-bg) 90%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .show-spotlight-backdrop {
+    backdrop-filter: blur(10px);
+  }
+}
+
 .show-lowpower .show-panel {
   backdrop-filter: none;
 }
