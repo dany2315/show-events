@@ -32,7 +32,7 @@ export function TemplatesClient({ templates, orgName, logoUrl }: { templates: Te
           <article key={tpl.id} className="overflow-hidden rounded-3xl border bg-card">
             <div className="pointer-events-none aspect-video">
               <ShowViewport className="size-full">
-                <ShowStage config={config} event={event} total={Math.round(event.goalAmount * 0.63)} donations={donations} control={EMPTY_CONTROL} formUrl={null} />
+                <ShowStage config={config} event={event} total={Math.round(event.goalAmount * 0.63)} donations={donations} control={EMPTY_CONTROL} formUrl={null} lowPower />
               </ShowViewport>
             </div>
             <div className="flex items-center justify-between gap-3 p-4">

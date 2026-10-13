@@ -28,6 +28,8 @@ export type ShowStageProps = {
   editing?: boolean;
   /** Dans l'éditeur, chaque bloc est enveloppé (déplacement / redimensionnement). */
   wrapBlock?: (block: ShowBlock, content: React.ReactNode) => React.ReactNode;
+  /** Appareil peu puissant (téléphone) : effets décoratifs coupés pour préserver la mémoire. */
+  lowPower?: boolean;
   className?: string;
 };
 
@@ -47,6 +49,7 @@ export function ShowStage({
   effect,
   editing = false,
   wrapBlock,
+  lowPower = false,
   className,
 }: ShowStageProps) {
   const locale = event.locale;
@@ -193,7 +196,7 @@ export function ShowStage({
       ref={stageRef}
       dir={locale === "he" ? "rtl" : "ltr"}
       lang={locale}
-      className={`show-root relative overflow-hidden ${className ?? ""}`}
+      className={`show-root relative overflow-hidden ${lowPower ? "show-lowpower" : ""} ${className ?? ""}`}
       style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT, ...(cssVars as React.CSSProperties) }}
     >
       {config.backgroundImage && (
@@ -207,7 +210,7 @@ export function ShowStage({
           />
         </>
       )}
-      <Ambient kind={theme.ambient} enabled={config.animation.ambient && !control.paused} />
+      <Ambient kind={theme.ambient} enabled={config.animation.ambient && !control.paused && !lowPower} />
 
       {config.blocks.map((block) => {
         if (!block.visible && !wrapBlock) return null;

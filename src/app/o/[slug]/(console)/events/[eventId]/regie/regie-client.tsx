@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ShowStage } from "@/components/show/stage";
 import { ShowViewport } from "@/components/show/viewport";
+import { useLowPower } from "@/components/show/use-low-power";
 import { useLiveEvent, type ConnectionStatus } from "@/components/show/use-live-event";
 import { EventStatusBadge } from "@/components/app/event-status-badge";
 import { useI18n } from "@/i18n/client";
@@ -74,6 +75,7 @@ export function RegieClient({
   const { t, locale } = useI18n();
   const eventId = snapshot.event.id;
   const { state, status } = useLiveEvent({ kind: "event", eventId }, snapshot);
+  const lowPower = useLowPower();
   const [regie, setRegie] = useState<RegieState>(initialRegie);
   const currency = state.event.currency;
 
@@ -189,6 +191,7 @@ export function RegieClient({
                   control={state.control}
                   formUrl={state.formUrl}
                   effect={state.effect}
+                  lowPower={lowPower}
                 />
               </ShowViewport>
             </div>

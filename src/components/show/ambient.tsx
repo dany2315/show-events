@@ -12,17 +12,16 @@ function seeded(seed: number) {
   };
 }
 
-/** Couche d'ambiance animée en CSS pur (léger pour tourner des heures sur l'écran géant). */
+/**
+ * Couche d'ambiance animée en CSS pur, volontairement sobre en ressources :
+ * uniquement des animations de transform / opacity (composées par le GPU),
+ * aucun filtre ni masque animé, peu d'éléments — elle doit tourner des heures
+ * sur l'ordinateur de la salle sans faiblir.
+ */
 export const Ambient = memo(function Ambient({ kind, enabled }: { kind: AmbientKind; enabled: boolean }) {
   const items = useMemo(() => {
     const rand = seeded(kind.length * 9973 + 17);
-    return Array.from({ length: 70 }, () => ({
-      x: rand() * 100,
-      y: rand() * 100,
-      s: rand(),
-      d: rand(),
-      t: rand(),
-    }));
+    return Array.from({ length: 40 }, () => ({ x: rand() * 100, y: rand() * 100, s: rand(), d: rand(), t: rand() }));
   }, [kind]);
 
   if (!enabled || kind === "none") return null;
@@ -30,30 +29,26 @@ export const Ambient = memo(function Ambient({ kind, enabled }: { kind: AmbientK
   if (kind === "rays") {
     return (
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        {/* Rayons statiques : un seul dégradé, sans rotation ni masque. */}
         <div
-          className="absolute"
+          className="absolute inset-0"
           style={{
-            left: "-30%",
-            top: "-80%",
-            width: "160%",
-            height: "220%",
             background:
-              "repeating-conic-gradient(from 0deg at 50% 50%, color-mix(in oklab, var(--show-accent) 9%, transparent) 0deg 6deg, transparent 6deg 18deg)",
-            animation: "show-rays 140s linear infinite",
-            maskImage: "radial-gradient(closest-side, black 20%, transparent 80%)",
+              "radial-gradient(60% 70% at 30% 0%, color-mix(in oklab, var(--show-accent) 12%, transparent), transparent 70%), repeating-conic-gradient(from 200deg at 30% -10%, color-mix(in oklab, var(--show-accent) 7%, transparent) 0deg 5deg, transparent 5deg 16deg)",
+            opacity: 0.9,
           }}
         />
-        {items.slice(0, 18).map((it, i) => (
+        {items.slice(0, 8).map((it, i) => (
           <span
             key={i}
             className="absolute rounded-full"
             style={{
               left: `${it.x}%`,
               top: `${it.y}%`,
-              width: 140 + it.s * 260,
-              height: 140 + it.s * 260,
-              background: "radial-gradient(circle, color-mix(in oklab, var(--show-accent2) 22%, transparent), transparent 70%)",
-              animation: `show-drift ${16 + it.d * 18}s ease-in-out ${-it.t * 20}s infinite`,
+              width: 180 + it.s * 220,
+              height: 180 + it.s * 220,
+              background: "radial-gradient(circle, color-mix(in oklab, var(--show-accent2) 20%, transparent), transparent 70%)",
+              animation: `show-drift ${18 + it.d * 18}s ease-in-out ${-it.t * 20}s infinite`,
               ["--dx" as string]: `${(it.d - 0.5) * 120}px`,
               ["--dy" as string]: `${(it.s - 0.5) * 90}px`,
             }}
@@ -66,21 +61,20 @@ export const Ambient = memo(function Ambient({ kind, enabled }: { kind: AmbientK
   if (kind === "bokeh") {
     return (
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        {items.slice(0, 26).map((it, i) => (
+        {items.slice(0, 14).map((it, i) => (
           <span
             key={i}
             className="absolute rounded-full"
             style={{
               left: `${it.x}%`,
               top: `${it.y}%`,
-              width: 40 + it.s * 220,
-              height: 40 + it.s * 220,
+              width: 60 + it.s * 220,
+              height: 60 + it.s * 220,
               background:
                 i % 3 === 0
-                  ? "radial-gradient(circle, color-mix(in oklab, var(--show-accent2) 30%, transparent), transparent 68%)"
-                  : "radial-gradient(circle, color-mix(in oklab, var(--show-accent) 26%, transparent), transparent 68%)",
-              filter: `blur(${2 + it.d * 8}px)`,
-              animation: `show-drift ${14 + it.d * 20}s ease-in-out ${-it.t * 30}s infinite`,
+                  ? "radial-gradient(circle, color-mix(in oklab, var(--show-accent2) 26%, transparent), transparent 65%)"
+                  : "radial-gradient(circle, color-mix(in oklab, var(--show-accent) 22%, transparent), transparent 65%)",
+              animation: `show-drift ${16 + it.d * 20}s ease-in-out ${-it.t * 30}s infinite`,
               ["--dx" as string]: `${(it.d - 0.5) * 160}px`,
               ["--dy" as string]: `${(it.s - 0.5) * 120}px`,
             }}
@@ -101,30 +95,30 @@ export const Ambient = memo(function Ambient({ kind, enabled }: { kind: AmbientK
           style={{
             left: `${it.x}%`,
             top: `${it.y}%`,
-            width: star ? 6 + it.s * 12 : 2 + it.s * 4,
-            height: star ? 6 + it.s * 12 : 2 + it.s * 4,
+            width: star ? 8 + it.s * 12 : 4 + it.s * 6,
+            height: star ? 8 + it.s * 12 : 4 + it.s * 6,
             borderRadius: star ? 0 : 9999,
-            clipPath: star
-              ? "polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%)"
-              : undefined,
-            background: i % 4 === 0 ? "var(--show-accent2)" : "var(--show-accent)",
-            boxShadow: star ? undefined : "0 0 10px var(--show-accent)",
-            animation: `show-twinkle ${2.4 + it.d * 3.6}s ease-in-out ${-it.t * 6}s infinite`,
+            clipPath: star ? "polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%)" : undefined,
+            background: star
+              ? i % 4 === 0
+                ? "var(--show-accent2)"
+                : "var(--show-accent)"
+              : "radial-gradient(circle, var(--show-accent2) 0%, var(--show-accent) 45%, transparent 72%)",
+            animation: `show-twinkle ${2.6 + it.d * 3.6}s ease-in-out ${-it.t * 6}s infinite`,
           }}
         />
       ))}
-      {items.slice(0, 28).map((it, i) => (
+      {items.slice(0, 14).map((it, i) => (
         <span
           key={`f${i}`}
           className="absolute rounded-full"
           style={{
             left: `${it.x}%`,
             bottom: `${-4 + it.s * 10}%`,
-            width: 3 + it.d * 5,
-            height: 3 + it.d * 5,
-            background: "var(--show-accent2)",
-            boxShadow: "0 0 14px var(--show-accent)",
-            animation: `show-float ${9 + it.s * 10}s linear ${-it.t * 18}s infinite`,
+            width: 6 + it.d * 8,
+            height: 6 + it.d * 8,
+            background: "radial-gradient(circle, var(--show-accent2) 0%, var(--show-accent) 40%, transparent 70%)",
+            animation: `show-float ${10 + it.s * 10}s linear ${-it.t * 18}s infinite`,
             ["--dx" as string]: `${(it.d - 0.5) * 140}px`,
             ["--o" as string]: String(0.35 + it.s * 0.5),
           }}

@@ -202,7 +202,19 @@
   box-shadow:
     0 30px 80px -30px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(14px);
+}
+/* Flou d'arrière-plan réservé aux ordinateurs (coûteux en mémoire graphique sur mobile). */
+@media (hover: hover) and (pointer: fine) {
+  .show-panel {
+    backdrop-filter: blur(14px);
+  }
+}
+.show-lowpower .show-panel {
+  backdrop-filter: none;
+}
+.show-lowpower .show-accent-text,
+.show-lowpower .show-bar-shine {
+  animation: none;
 }
 
 .show-accent-text {

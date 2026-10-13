@@ -419,6 +419,7 @@ export const he: typeof fr = {
     redo: "חזרה",
     leaveWarning: "יש שינויים שלא נשמרו.",
     zoomFit: "התאמה",
+    mobileHint: "הסטודיו מיועד למחשב או לטאבלט: בטלפון אפקטי האווירה מוסתרים בתצוגה המקדימה.",
     keyboardHelp: "חיצים: הזזה · Shift + חיצים: הזזה ב־1% · Delete: הסתרה",
     block_logo: "לוגו",
     block_title: "כותרת",

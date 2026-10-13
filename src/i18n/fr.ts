@@ -417,6 +417,7 @@ export const fr = {
     redo: "Rétablir",
     leaveWarning: "Des modifications ne sont pas enregistrées.",
     zoomFit: "Ajuster",
+    mobileHint: "Le Studio est conçu pour un ordinateur ou une tablette : sur téléphone, les effets d'ambiance sont masqués dans l'aperçu.",
     keyboardHelp: "Flèches : déplacer · Maj + flèches : déplacer de 1 % · Suppr : masquer",
     block_logo: "Logo",
     block_title: "Titre",

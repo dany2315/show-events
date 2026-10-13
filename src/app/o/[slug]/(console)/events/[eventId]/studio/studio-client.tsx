@@ -27,6 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ShowStage, type ShowEffect } from "@/components/show/stage";
 import { ShowViewport } from "@/components/show/viewport";
+import { useLowPower } from "@/components/show/use-low-power";
 import { saveLayoutAction, saveTemplateAction } from "@/app/actions/studio";
 import { setEventLogoAction } from "@/app/actions/events";
 import { useI18n } from "@/i18n/client";
@@ -62,6 +63,7 @@ export function StudioClient({
   backHref: string;
 }) {
   const { t } = useI18n();
+  const lowPower = useLowPower();
   const history = useHistory<ShowConfig>(snapshot.layout);
   const config = history.value;
   const [savedConfig, setSavedConfig] = useState<ShowConfig>(snapshot.layout);
@@ -324,6 +326,7 @@ export function StudioClient({
         </Button>
       </header>
 
+      {lowPower && <div className="shrink-0 border-b bg-gold-soft px-4 py-2 text-xs text-muted-foreground lg:hidden">{t.studio.mobileHint}</div>}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Panneau gauche */}
         <aside className="order-2 min-h-0 border-t lg:order-1 lg:w-[300px] lg:shrink-0 lg:border-e lg:border-t-0">
@@ -368,6 +371,7 @@ export function StudioClient({
               formUrl={snapshot.formUrl}
               effect={effect}
               editing
+              lowPower={lowPower}
               wrapBlock={wrapBlock}
             />
           </ShowViewport>

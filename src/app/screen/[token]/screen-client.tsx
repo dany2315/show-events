@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Maximize, Minimize, WifiOff } from "lucide-react";
 import { ShowStage } from "@/components/show/stage";
 import { ShowViewport } from "@/components/show/viewport";
+import { useLowPower } from "@/components/show/use-low-power";
 import { useLiveEvent } from "@/components/show/use-live-event";
 import { dictionaries } from "@/i18n/dictionaries";
 import type { LiveSnapshot } from "@/lib/live/types";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 export function ScreenClient({ token, snapshot }: { token: string; snapshot: LiveSnapshot }) {
   const { state, status } = useLiveEvent({ kind: "screen", token }, snapshot);
+  const lowPower = useLowPower();
   const t = dictionaries[state.event.locale].show;
   const [idle, setIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -92,6 +94,7 @@ export function ScreenClient({ token, snapshot }: { token: string; snapshot: Liv
           control={state.control}
           formUrl={state.formUrl}
           effect={state.effect}
+          lowPower={lowPower}
         />
       </ShowViewport>
 

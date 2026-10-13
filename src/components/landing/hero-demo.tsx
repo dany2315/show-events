@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ShowStage, type ShowEffect } from "@/components/show/stage";
 import { ShowViewport } from "@/components/show/viewport";
+import { useLowPower } from "@/components/show/use-low-power";
 import { demoConfig, demoDonations, demoEvent } from "@/lib/show/demo";
 import type { ThemeId } from "@/lib/show/config";
 import type { PublicDonation } from "@/lib/live/types";
@@ -14,6 +15,7 @@ const BASE_TOTAL = 126_000;
 /** Aperçu vivant du show : des promesses arrivent toutes les quelques secondes. */
 export function HeroDemo({ theme = "gala", interval = 3600, className }: { theme?: ThemeId; interval?: number; className?: string }) {
   const { locale } = useI18n();
+  const lowPower = useLowPower();
   const event = useMemo(() => demoEvent(locale), [locale]);
   const config = useMemo(() => demoConfig(theme, locale), [theme, locale]);
   const pool = useMemo(() => demoDonations(locale), [locale]);
@@ -49,6 +51,7 @@ export function HeroDemo({ theme = "gala", interval = 3600, className }: { theme
         control={EMPTY_CONTROL}
         formUrl={null}
         effect={effect}
+        lowPower={lowPower}
       />
     </ShowViewport>
   );
