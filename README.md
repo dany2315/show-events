@@ -79,7 +79,7 @@ Les tests de bout en bout couvrent : régie (réel + fictif, total public), form
 ## Déploiement (Option B : Vercel + Neon + Ably)
 
 1. Importer le dépôt dans Vercel et renseigner les variables de `.env.example`.
-2. `vercel.json` exécute `prisma migrate deploy` avant chaque build.
+2. `vercel.json` exécute `prisma migrate deploy` avant chaque build, via une connexion **directe** à Neon (`DIRECT_URL`, ou `DATABASE_URL` sans `-pooler`) : les migrations ne passent jamais par le pooler.
 3. **Région** : les fonctions doivent être proches de la base. `vercel.json` cible `cle1` (Cleveland) pour la base Neon actuelle (`us-east-2`). Pour la France et Israël, il est recommandé de créer la base de production Neon en `eu-central-1` (Francfort) et de passer la région Vercel à `fra1`.
 4. Ably : créer une clé (publish + subscribe) et la renseigner dans `ABLY_API_KEY`.
 
