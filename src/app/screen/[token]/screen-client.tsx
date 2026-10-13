@@ -95,6 +95,17 @@ export function ScreenClient({ token, snapshot }: { token: string; snapshot: Liv
         />
       </ShowViewport>
 
+      {(state.event.status === "TEST" || state.event.status === "DRAFT") && (
+        <div
+          className={cn(
+            "pointer-events-none absolute start-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold tracking-[0.2em] shadow-lg",
+            state.event.status === "TEST" ? "bg-amber-400 text-black" : "bg-white/80 text-black",
+          )}
+        >
+          {state.event.status === "TEST" ? t.testBadge : t.draftBadge}
+        </div>
+      )}
+
       {status === "offline" && (
         <div className="absolute bottom-4 start-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
           <WifiOff className="size-3.5 text-red-400" />

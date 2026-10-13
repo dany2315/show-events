@@ -24,6 +24,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/events/[eve
         amount: true,
         currency: true,
         isFictitious: true,
+        isTest: true,
         source: true,
         createdBy: { select: { name: true } },
       },
@@ -35,7 +36,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/events/[eve
         r.donorName,
         r.amount,
         r.currency,
-        r.isFictitious ? "Fictif" : "Réel",
+        r.isTest ? "Test" : r.isFictitious ? "Fictif" : "Réel",
         r.source === "MOBILE" ? "Mobile" : "Régie",
         r.createdBy?.name ?? "",
       ]

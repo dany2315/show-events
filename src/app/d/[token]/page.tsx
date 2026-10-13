@@ -57,7 +57,7 @@ export default async function DonatePage({ params }: PageProps<"/d/[token]">) {
         currency: event.currency,
         locale: event.locale,
         goalAmount: event.goalAmount,
-        ended: event.status === "ENDED",
+        status: event.status,
       }}
       initialTotal={totals.total}
       cssVars={themeCssVars(config)}

@@ -27,6 +27,7 @@ export default async function RegiePage({ params }: PageProps<"/o/[slug]/events/
       snapshot={snapshot}
       initialRegie={regie}
       links={{ formUrl: links.formUrl, displayUrl: links.displayUrl }}
+      isSuperAdmin={ctx.user.platformRole === "SUPER_ADMIN"}
       backHref={ctx.can("org.view") ? `/o/${slug}/events/${event.id}` : `/o/${slug}`}
     />
   );

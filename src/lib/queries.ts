@@ -5,7 +5,7 @@ export type EventSummary = {
   id: string;
   name: string;
   date: Date;
-  status: "DRAFT" | "LIVE" | "ENDED";
+  status: "DRAFT" | "TEST" | "LIVE" | "ENDED";
   currency: "EUR" | "ILS" | "USD";
   locale: "fr" | "he";
   goalAmount: number;
@@ -50,6 +50,8 @@ export async function listOrgEvents(organizationId: string): Promise<EventSummar
 export function pickFeaturedEvent(events: EventSummary[], now = new Date()) {
   const live = events.find((e) => e.status === "LIVE");
   if (live) return { event: live, kind: "current" as const };
+  const testing = events.find((e) => e.status === "TEST");
+  if (testing) return { event: testing, kind: "current" as const };
   const upcoming = events
     .filter((e) => e.status !== "ENDED" && e.date.getTime() >= now.getTime() - 12 * 3600_000)
     .sort((a, b) => a.date.getTime() - b.date.getTime())[0];

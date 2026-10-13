@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import confetti from "canvas-confetti";
-import { Heart, Languages, Loader2, Send } from "lucide-react";
+import { FlaskConical, Heart, Languages, Loader2, Send } from "lucide-react";
 import { dictionaries } from "@/i18n/dictionaries";
 import { fmt } from "@/i18n/format";
 import { CURRENCY_SYMBOL, formatMoney, goalProgress, parseAmountInput } from "@/lib/money";
@@ -18,7 +18,7 @@ type EventInfo = {
   currency: CurrencyCode;
   locale: AppLocale;
   goalAmount: number;
-  ended: boolean;
+  status: "DRAFT" | "TEST" | "LIVE" | "ENDED";
 };
 
 function newKey() {
@@ -74,7 +74,7 @@ export function DonateForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.code === "RATE_LIMITED" ? t.errorRate : data.code === "EVENT_ENDED" ? t.errorEnded : data.code === "UNAVAILABLE" ? t.errorUnavailable : dictionaries[locale].common.errorGeneric);
+        setError(data.code === "RATE_LIMITED" ? t.errorRate : data.code === "EVENT_ENDED" ? t.errorEnded : data.code === "EVENT_NOT_OPEN" ? t.notOpen : data.code === "UNAVAILABLE" ? t.errorUnavailable : dictionaries[locale].common.errorGeneric);
         return;
       }
       if (typeof data.total === "number") setTotal(data.total);
@@ -139,10 +139,16 @@ export function DonateForm({
           </div>
         </div>
 
-        {event.ended ? (
+        {event.status === "TEST" && (
+          <div className="mt-6 flex items-center gap-2 rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-medium text-black">
+            <FlaskConical className="size-4 shrink-0" />
+            {t.testBanner}
+          </div>
+        )}
+        {event.status === "ENDED" || event.status === "DRAFT" ? (
           <div className="show-panel mt-8 rounded-3xl p-6 text-center">
             <Heart className="mx-auto size-8" style={{ color: "var(--show-accent)" }} />
-            <p className="mt-3 text-lg">{t.errorEnded}</p>
+            <p className="mt-3 text-lg">{event.status === "ENDED" ? t.errorEnded : t.notOpen}</p>
           </div>
         ) : success ? (
           <div className="show-panel mt-8 rounded-3xl p-7 text-center animate-in zoom-in-95 fade-in duration-500">

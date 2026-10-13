@@ -61,6 +61,7 @@ export function DonationsTable({ donations, currency, exportUrl }: { donations: 
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{d.donorName}</span>
+                      {d.isTest && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-semibold text-black">{t.eventStatus.TEST}</span>}
                       {d.isFictitious && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">{t.eventDetail.fictitious}</span>
                       )}

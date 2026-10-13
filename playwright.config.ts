@@ -29,6 +29,7 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { BETTER_AUTH_URL: `http://localhost:${PORT}`, NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}` },
+    // Les tests enchaînent de nombreuses connexions depuis la même IP : limite anti-force-brute relevée.
+    env: { BETTER_AUTH_URL: `http://localhost:${PORT}`, NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`, AUTH_SIGNIN_RATE_LIMIT: "500" },
   },
 });

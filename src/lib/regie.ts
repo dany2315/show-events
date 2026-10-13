@@ -7,6 +7,7 @@ export type AdminDonation = {
   donorName: string;
   amount: number;
   isFictitious: boolean;
+  isTest: boolean;
   source: "MANUAL" | "MOBILE";
   createdAt: string;
   createdByName: string | null;
@@ -36,6 +37,7 @@ export async function getRegieState(eventId: string, limit = 60): Promise<RegieS
         donorName: true,
         amount: true,
         isFictitious: true,
+        isTest: true,
         source: true,
         createdAt: true,
         createdBy: { select: { name: true } },
@@ -50,6 +52,7 @@ export async function getRegieState(eventId: string, limit = 60): Promise<RegieS
       donorName: r.donorName,
       amount: r.amount,
       isFictitious: r.isFictitious,
+      isTest: r.isTest,
       source: r.source,
       createdAt: r.createdAt.toISOString(),
       createdByName: r.createdBy?.name ?? null,

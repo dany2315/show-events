@@ -8,7 +8,7 @@ import { audit } from "./audit";
 
 export class DonationError extends Error {
   constructor(
-    public code: "EVENT_NOT_FOUND" | "EVENT_ENDED" | "ORG_SUSPENDED" | "RATE_LIMITED" | "INVALID" | "NOT_FOUND",
+    public code: "EVENT_NOT_FOUND" | "EVENT_NOT_OPEN" | "EVENT_ENDED" | "ORG_SUSPENDED" | "RATE_LIMITED" | "INVALID" | "NOT_FOUND",
     message: string,
   ) {
     super(message);
@@ -77,7 +77,7 @@ export async function recordDonation(input: RecordDonationInput) {
         WHERE e.id = ${input.eventId}
           AND o.id = e."organizationId"
           AND o.status = 'ACTIVE'
-          AND (${input.source}::text <> 'MOBILE' OR e.status <> 'ENDED')
+          AND e.status IN ('TEST', 'LIVE')
           AND (${key}::text IS NULL OR NOT EXISTS (
             SELECT 1 FROM "donation" d WHERE d."eventId" = e.id AND d."idempotencyKey" = ${key}::text))
           AND (${ipHash}::text IS NULL OR (
@@ -85,10 +85,10 @@ export async function recordDonation(input: RecordDonationInput) {
             WHERE d."eventId" = e.id AND d."ipHash" = ${ipHash}::text
               AND d."createdAt" > (now() AT TIME ZONE 'UTC') - make_interval(secs => ${windowSeconds}::int)
           ) < ${PUBLIC_RATE_LIMIT.max}::int)
-        RETURNING e.id, e.currency, e."liveTotal", e."liveCount"
+        RETURNING e.id, e.currency, e.status, e."liveTotal", e."liveCount"
       ), ins AS (
-        INSERT INTO "donation" (id, "eventId", "donorName", amount, currency, "isFictitious", source, "idempotencyKey", "ipHash", "createdById", "createdAt", "updatedAt")
-        SELECT ${id}, ev.id, ${donorName}, ${input.amount}::int, ev.currency, ${isFictitious}::boolean, ${input.source}::"DonationSource",
+        INSERT INTO "donation" (id, "eventId", "donorName", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "createdById", "createdAt", "updatedAt")
+        SELECT ${id}, ev.id, ${donorName}, ${input.amount}::int, ev.currency, ${isFictitious}::boolean, ev.status = 'TEST', ${input.source}::"DonationSource",
                ${key}::text, ${ipHash}::text, ${input.createdById ?? null}::text, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC'
         FROM ev
         RETURNING id, "donorName", amount, "isFictitious", "createdAt"
@@ -124,7 +124,7 @@ export async function recordDonation(input: RecordDonationInput) {
     };
   }
   // Rien n'a été écrit : on détermine pourquoi (chemin rare, hors flux normal).
-  return explainRejection(input.eventId, key, ipHash, input.source);
+  return explainRejection(input.eventId, key, ipHash);
 }
 
 function isUniqueViolation(error: unknown) {
@@ -142,11 +142,12 @@ async function existingResult(eventId: string, key: string) {
   return { donation: existing, ...totals, duplicate: true };
 }
 
-async function explainRejection(eventId: string, key: string | null, ipHash: string | null, source: "MANUAL" | "MOBILE") {
+async function explainRejection(eventId: string, key: string | null, ipHash: string | null) {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, organization: { select: { status: true } } } });
   if (!event) throw new DonationError("EVENT_NOT_FOUND", "Événement introuvable");
   if (event.organization.status === "SUSPENDED") throw new DonationError("ORG_SUSPENDED", "Association suspendue");
-  if (source === "MOBILE" && event.status === "ENDED") throw new DonationError("EVENT_ENDED", "La collecte est terminée");
+  if (event.status === "ENDED") throw new DonationError("EVENT_ENDED", "La collecte est terminée");
+  if (event.status === "DRAFT") throw new DonationError("EVENT_NOT_OPEN", "La collecte n'est pas encore ouverte");
   if (key) {
     const existing = await prisma.donation.findUnique({ where: { eventId_idempotencyKey: { eventId, idempotencyKey: key } } });
     if (existing) return existingResult(eventId, key);

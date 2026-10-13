@@ -90,8 +90,10 @@ enum OrgStatus {
   SUSPENDED
 }
 
+/// DRAFT (préparation) → TEST (répétition, sans crédit) → LIVE (crédit consommé) → ENDED (définitif)
 enum EventStatus {
   DRAFT
+  TEST
   LIVE
   ENDED
 }
@@ -167,31 +169,33 @@ model Membership {
 }
 
 model Event {
-  id             String        @id @default(cuid())
-  organizationId String
-  name           String
-  date           DateTime
-  goalAmount     Int
-  currency       Currency      @default(EUR)
-  locale         Locale        @default(fr)
-  status         EventStatus   @default(DRAFT)
+  id               String        @id @default(cuid())
+  organizationId   String
+  name             String
+  date             DateTime
+  goalAmount       Int
+  currency         Currency      @default(EUR)
+  locale           Locale        @default(fr)
+  status           EventStatus   @default(DRAFT)
   /// Logo spécifique à l'événement (sinon celui de l'association)
-  logoUrl        String?
+  logoUrl          String?
   /// État de pilotage du direct : { paused, overlay, overlayAt }
-  liveControl    Json          @default("{}")
+  liveControl      Json          @default("{}")
   /// Compteurs du direct, maintenus atomiquement à chaque écriture de promesse
   /// (total public = promesses réelles + fictives, hors promesses supprimées).
-  liveTotal      Int           @default(0)
-  liveCount      Int           @default(0)
-  startedAt      DateTime?
-  endedAt        DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  donations      Donation[]
-  layout         ShowLayout?
-  accesses       EventAccess[]
-  outbox         OutboxEvent[]
+  liveTotal        Int           @default(0)
+  liveCount        Int           @default(0)
+  startedAt        DateTime?
+  endedAt          DateTime?
+  /// Date de consommation du crédit (passage en direct) : un seul crédit par événement.
+  creditConsumedAt DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  donations        Donation[]
+  layout           ShowLayout?
+  accesses         EventAccess[]
+  outbox           OutboxEvent[]
 
   @@index([organizationId, date])
   @@map("event")
@@ -204,6 +208,8 @@ model Donation {
   amount         Int
   currency       Currency
   isFictitious   Boolean        @default(false)
+  /// Promesse saisie en mode test : effacée au passage en direct.
+  isTest         Boolean        @default(false)
   source         DonationSource
   idempotencyKey String?
   ipHash         String?

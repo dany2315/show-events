@@ -23,7 +23,7 @@ async function createUser(name: string, email: string, password: string) {
   return user;
 }
 
-async function createEvent(organizationId: string, name: string, status: "LIVE" | "ENDED") {
+async function createEvent(organizationId: string, name: string, status: "DRAFT" | "LIVE" | "ENDED") {
   const event = await prisma.event.create({
     data: {
       organizationId,
@@ -33,6 +33,7 @@ async function createEvent(organizationId: string, name: string, status: "LIVE" 
       currency: "EUR",
       locale: "fr",
       status,
+      creditConsumedAt: status === "DRAFT" ? null : new Date(),
       layout: { create: { config: defaultShowConfig("gala") as unknown as Prisma.InputJsonValue } },
     },
   });

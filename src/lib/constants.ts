@@ -11,7 +11,7 @@ export const LOCALE_COOKIE = "fl_locale";
 export const MEMBER_ROLES = ["ORG_ADMIN", "SHOW_OPERATOR"] as const;
 export type MemberRoleCode = (typeof MEMBER_ROLES)[number];
 
-export const EVENT_STATUSES = ["DRAFT", "LIVE", "ENDED"] as const;
+export const EVENT_STATUSES = ["DRAFT", "TEST", "LIVE", "ENDED"] as const;
 export type EventStatusCode = (typeof EVENT_STATUSES)[number];
 
 export const PLAN_TYPES = ["TRIAL", "EVENT_PASS", "PRO_MONTHLY", "PRO_YEARLY"] as const;

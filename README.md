@@ -23,9 +23,28 @@ Ce dépôt implémente le **cahier des charges MVP 1.0** tel que défini (héber
 | Studio Show | Éditeur visuel 1920×1080 (coordonnées proportionnelles) : déplacement / redimensionnement (react-rnd), calques (dnd-kit), visibilité, couleurs, image de fond, logo, 5 styles, animations, textes, annuler/rétablir, magnétisme, raccourcis clavier, simulation de don, modèles réutilisables. |
 | Écran géant | `/screen/[jeton]` : plein écran, Full HD et 4K, synchronisation temps réel, reconnexion automatique sans perte du total, anti-veille. |
 | Devises et langues | EUR, ILS, USD ; interfaces FR / HE avec RTL complet. |
-| Commercialisation | Paiement par événement (crédits) ou abonnement (mensuel / annuel), gérés par le Super Admin. Pas de paiement en ligne des dons. |
+| Commercialisation | Paiement par événement (crédits) ou abonnement (mensuel / annuel), gérés par le Super Admin. Le crédit est consommé au **passage en direct** ; créer et tester un événement est gratuit. Pas de paiement en ligne des dons. |
 
 Hors périmètre MVP (non inclus) : paiement en ligne des dons, application native, designs différents par écran.
+
+## Cycle de vie d'un événement
+
+```
+En préparation ──► Mode test ──► En direct ──► Terminé (définitif)
+      ▲   ◄──────────┘   │
+      └──────────────────┘ (passage en direct possible depuis la préparation ou le test)
+```
+
+| Statut | Promesses | Crédit | Écran géant |
+| --- | --- | --- | --- |
+| **En préparation** | refusées (formulaire : « collecte pas encore ouverte ») | — | badge « Aperçu » |
+| **Mode test** | acceptées, marquées *test* | aucun | badge « MODE TEST » |
+| **En direct** | acceptées | **1 crédit consommé** (sauf abonnement), une seule fois par événement | show normal |
+| **Terminé** | refusées | — | dernier état affiché |
+
+- **Passer en direct** (fiche événement ou Régie) : confirmation indiquant le crédit utilisé ; les promesses de test sont **effacées** pour que le gala démarre à zéro.
+- **Terminer la collecte** : confirmation, puis action **définitive** (plus de relance possible). Seul le Super Admin peut rouvrir, pour le support, sans nouveau crédit.
+- Un direct ne peut pas revenir en préparation ni en test, ce qui empêche de réutiliser un crédit.
 
 ## Architecture
 

@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  CirclePlay,
   ExternalLink,
   Eye,
+  FlaskConical,
   Keyboard,
   Loader2,
   MessageSquareText,
@@ -43,7 +42,6 @@ import { ShowStage } from "@/components/show/stage";
 import { ShowViewport } from "@/components/show/viewport";
 import { useLiveEvent, type ConnectionStatus } from "@/components/show/use-live-event";
 import { EventStatusBadge } from "@/components/app/event-status-badge";
-import { setEventStatusAction } from "@/app/actions/events";
 import { useI18n } from "@/i18n/client";
 import { fmt } from "@/i18n/format";
 import { formatMoney, formatPercent, goalProgress, parseAmountInput, CURRENCY_SYMBOL } from "@/lib/money";
@@ -52,6 +50,9 @@ import type { LiveSnapshot } from "@/lib/live/types";
 import type { AdminDonation, RegieState } from "@/lib/regie";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/use-hydrated";
+import { acceptsDonations } from "@/lib/lifecycle";
+import type { EventStatusCode } from "@/lib/constants";
+import { EventStatusControl } from "@/components/app/event-status-control";
 
 function newKey() {
   return (crypto.randomUUID?.() ?? `${Date.now()}${Math.random()}`).replace(/[^A-Za-z0-9]/g, "").slice(0, 32);
@@ -62,14 +63,15 @@ export function RegieClient({
   initialRegie,
   links,
   backHref,
+  isSuperAdmin,
 }: {
+  isSuperAdmin: boolean;
   snapshot: LiveSnapshot;
   initialRegie: RegieState;
   links: { formUrl: string; displayUrl: string };
   backHref: string;
 }) {
   const { t, locale } = useI18n();
-  const router = useRouter();
   const eventId = snapshot.event.id;
   const { state, status } = useLiveEvent({ kind: "event", eventId }, snapshot);
   const [regie, setRegie] = useState<RegieState>(initialRegie);
@@ -128,9 +130,7 @@ export function RegieClient({
         </div>
       </header>
 
-      {state.event.status === "DRAFT" && (
-        <DraftBanner eventId={eventId} onDone={() => router.refresh()} />
-      )}
+      <StatusBanner eventId={eventId} status={state.event.status} isSuperAdmin={isSuperAdmin} />
 
       {/* Mobile : total → saisie → dernières promesses → pilotage. Grand écran : 3 colonnes. */}
       <div className="mx-auto grid max-w-[1600px] gap-5 p-4 [grid-template-areas:'total'_'form'_'latest'_'controls'_'preview'] lg:grid-cols-[380px_minmax(0,1fr)] lg:[grid-template-areas:'total_total'_'form_latest'_'controls_preview'] xl:grid-cols-[400px_minmax(0,1fr)_380px] xl:grid-rows-[auto_1fr] xl:[grid-template-areas:'form_total_controls'_'form_latest_preview']">
@@ -162,7 +162,7 @@ export function RegieClient({
         </section>
 
         <section className="[grid-area:form]">
-          <AddDonationForm eventId={eventId} currency={currency} onAdded={refreshRegie} />
+          <AddDonationForm eventId={eventId} currency={currency} onAdded={refreshRegie} open={acceptsDonations(state.event.status)} />
         </section>
 
         <section className="[grid-area:controls]">
@@ -226,34 +226,33 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "am
   );
 }
 
-function DraftBanner({ eventId, onDone }: { eventId: string; onDone: () => void }) {
+function StatusBanner({ eventId, status, isSuperAdmin }: { eventId: string; status: EventStatusCode; isSuperAdmin: boolean }) {
   const { t } = useI18n();
-  const [pending, startTransition] = useTransition();
+  const text =
+    status === "DRAFT" ? t.regie.statusDraft : status === "TEST" ? t.regie.statusTest : status === "ENDED" ? t.regie.statusEnded : t.eventDetail.liveInfo;
   return (
-    <div className="border-b bg-gold-soft">
+    <div
+      className={cn(
+        "border-b",
+        status === "TEST" && "bg-amber-400/15",
+        status === "DRAFT" && "bg-gold-soft",
+        status === "LIVE" && "bg-live/[0.07]",
+        status === "ENDED" && "bg-muted",
+      )}
+    >
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-sm">
-        <span>{t.regie.statusDraft}</span>
-        <Button
-          size="sm"
-          className="rounded-full bg-live text-white hover:bg-live/90"
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              const res = await setEventStatusAction(eventId, "LIVE");
-              if (res.ok) onDone();
-              else toast.error(t.common.errorGeneric);
-            })
-          }
-        >
-          {pending ? <Loader2 className="size-3.5 animate-spin" /> : <CirclePlay className="size-3.5" />}
-          {t.regie.goLive}
-        </Button>
+        <span className={cn("flex items-center gap-2", status === "TEST" && "font-medium text-amber-200")}>
+          {status === "TEST" && <FlaskConical className="size-4 shrink-0" />}
+          {status === "LIVE" && <span className="live-dot shrink-0" />}
+          {text}
+        </span>
+        <EventStatusControl eventId={eventId} status={status} isSuperAdmin={isSuperAdmin} size="sm" />
       </div>
     </div>
   );
 }
 
-function AddDonationForm({ eventId, currency, onAdded }: { eventId: string; currency: "EUR" | "ILS" | "USD"; onAdded: () => void }) {
+function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string; currency: "EUR" | "ILS" | "USD"; onAdded: () => void; open: boolean }) {
   const { t, locale } = useI18n();
   const [name, setName] = useState("");
   const [amountText, setAmountText] = useState("");
@@ -302,7 +301,7 @@ function AddDonationForm({ eventId, currency, onAdded }: { eventId: string; curr
   }
 
   return (
-    <form onSubmit={submit} method="post" className="rounded-3xl border bg-card p-5">
+    <form onSubmit={submit} method="post" className={cn("rounded-3xl border bg-card p-5", !open && "opacity-60")}>
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <Plus className="size-5 text-gold" />
         {t.regie.addTitle}
@@ -372,7 +371,7 @@ function AddDonationForm({ eventId, currency, onAdded }: { eventId: string; curr
         </span>
       </label>
 
-      <Button type="submit" size="lg" disabled={pending || !hydrated} className="mt-5 h-14 w-full rounded-2xl text-base font-semibold">
+      <Button type="submit" size="lg" disabled={pending || !hydrated || !open} className="mt-5 h-14 w-full rounded-2xl text-base font-semibold">
         {pending ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />}
         {pending ? t.regie.submitting : t.regie.submit}
         {amount ? <span className="tabular opacity-70">· {formatMoney(amount, currency, locale)}</span> : null}
@@ -420,6 +419,7 @@ function LatestList({ donations, currency, eventId, onChanged }: { donations: Ad
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium">{d.donorName}</span>
+                  {d.isTest && <span className="shrink-0 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold uppercase text-black">{t.eventStatus.TEST}</span>}
                   {d.isFictitious && <span className="shrink-0 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-300">{t.eventDetail.fictitious}</span>}
                 </div>
                 <div className="text-xs text-muted-foreground">

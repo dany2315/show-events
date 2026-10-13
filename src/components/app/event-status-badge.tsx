@@ -8,6 +8,7 @@ export function EventStatusBadge({ status, label, className }: { status: EventSt
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
         status === "LIVE" && "bg-live/10 text-live",
         status === "DRAFT" && "bg-muted text-muted-foreground",
+        status === "TEST" && "bg-amber-400/15 text-amber-700 dark:text-amber-300",
         status === "ENDED" && "bg-success/10 text-success",
         className,
       )}

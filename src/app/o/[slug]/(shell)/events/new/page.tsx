@@ -39,12 +39,10 @@ export default async function NewEventPage({ params }: PageProps<"/o/[slug]/even
         </div>
       ) : (
         <div className="mt-8 rounded-3xl border bg-card p-6 sm:p-8">
-          {check.allowed && check.consumesCredit && (
-            <div className="mb-6 flex items-center gap-2 rounded-2xl bg-gold-soft/60 px-4 py-3 text-sm">
-              <Info className="size-4 text-gold" />
-              {fmt(t.events.creditWillBeUsed, { count: check.credits })}
-            </div>
-          )}
+          <div className="mb-6 flex items-start gap-2 rounded-2xl bg-gold-soft/60 px-4 py-3 text-sm">
+            <Info className="mt-0.5 size-4 shrink-0 text-gold" />
+            {check.subscriptionPlan ? t.events.unlimitedOnLive : fmt(t.events.creditOnLive, { count: check.credits })}
+          </div>
           <EventForm
             mode="create"
             action={createEventAction.bind(null, ctx.org.id)}

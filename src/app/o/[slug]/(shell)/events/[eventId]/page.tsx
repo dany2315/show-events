@@ -19,6 +19,7 @@ import { formatMoney, formatPercent, goalProgress } from "@/lib/money";
 import { formatDate, formatShortDate, formatTime } from "@/lib/dates";
 import { getI18n } from "@/i18n/server";
 import { countLabel, fmt } from "@/i18n/format";
+import { cn } from "@/lib/utils";
 
 export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/events/[eventId]">) {
   const { slug, eventId } = await params;
@@ -82,8 +83,36 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
         </div>
       </div>
 
+      {/* Cycle de vie : préparation → test → direct → terminé */}
+      <section
+        className={cn(
+          "mt-8 flex flex-col gap-4 rounded-3xl border p-5 sm:flex-row sm:items-center sm:justify-between",
+          event.status === "TEST" && "border-amber-300 bg-amber-50/70",
+          event.status === "LIVE" && "border-live/30 bg-live/5",
+          event.status === "ENDED" && "bg-muted/50",
+          event.status === "DRAFT" && "bg-card",
+        )}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            {t.eventDetail.statusTitle}
+            <EventStatusBadge status={event.status} label={t.eventStatus[event.status]} />
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {event.status === "DRAFT"
+              ? t.eventDetail.draftInfo
+              : event.status === "TEST"
+                ? t.eventDetail.testInfo
+                : event.status === "LIVE"
+                  ? t.eventDetail.liveInfo
+                  : t.eventDetail.endedInfo}
+          </p>
+        </div>
+        <EventStatusControl eventId={event.id} status={event.status} isSuperAdmin={ctx.user.platformRole === "SUPER_ADMIN"} className="shrink-0" />
+      </section>
+
       {/* Indicateurs */}
-      <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="relative overflow-hidden rounded-3xl bg-ink p-7 text-white">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_90%_at_100%_0%,rgba(228,182,92,0.2),transparent_60%)]" />
           <div className="relative">
@@ -107,14 +136,11 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
             sub={countLabel(t.counts, "promises", regie.fictitiousCount)}
             tone="amber"
           />
-          <Kpi label={t.eventDetail.count} value={String(regie.count)} />
-          <div className="rounded-3xl border bg-card p-5">
-            <div className="text-sm text-muted-foreground">{t.eventDetail.statusTitle}</div>
-            <EventStatusControl eventId={event.id} status={event.status} compact className="mt-3" />
+          <div className="col-span-2">
+            <Kpi label={t.eventDetail.count} value={String(regie.count)} />
           </div>
         </div>
       </div>
-      {event.status === "ENDED" && <p className="mt-3 text-sm text-muted-foreground">{t.eventDetail.endedInfo}</p>}
 
       {/* Liens */}
       <section className="mt-10">

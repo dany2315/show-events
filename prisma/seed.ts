@@ -105,6 +105,7 @@ async function ensureEvent(input: {
       locale: input.locale,
       status: input.status,
       startedAt: input.status === "LIVE" ? new Date() : null,
+      creditConsumedAt: input.status === "LIVE" || input.status === "ENDED" ? new Date() : null,
       layout: { create: { config: config as unknown as Prisma.InputJsonValue } },
     },
   });
