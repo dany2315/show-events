@@ -123,7 +123,7 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     // Fond d'écran vidéo (lien YouTube)
     await page.getByRole("tab", { name: "Style" }).click();
     await page.getByRole("button", { name: "Vidéo", exact: true }).click();
-    await page.getByPlaceholder("Lien YouTube, Vimeo ou fichier MP4").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    await page.getByPlaceholder("Lien YouTube, Vimeo, Dailymotion ou MP4").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     await page.getByRole("button", { name: "Appliquer" }).click();
     await expect(page.getByText("YouTube · dQw4w9WgXcQ")).toBeVisible();
 
@@ -131,7 +131,7 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     await page.getByRole("tab", { name: "Éléments" }).click();
     await page.getByRole("button", { name: /^Vidéo Clip, film ou direct/ }).click();
     const props = page.locator("aside").last();
-    await props.getByPlaceholder("Lien YouTube, Vimeo ou fichier MP4").fill("https://vimeo.com/123456789");
+    await props.getByPlaceholder("Lien YouTube, Vimeo, Dailymotion ou MP4").fill("https://vimeo.com/123456789");
     await props.getByRole("button", { name: "Appliquer" }).click();
     await page.getByRole("button", { name: "Disposition automatique" }).click();
     await expect(page.getByText("Mise en page « Vidéo à la une » appliquée")).toBeVisible();
@@ -141,6 +141,15 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     await expect(page.getByText("Design enregistré et diffusé sur les écrans")).toBeVisible();
     await expect(screen.locator('iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]')).toHaveCount(1, { timeout: 20_000 });
     await expect(screen.locator('iframe[src*="player.vimeo.com/video/123456789"]')).toHaveCount(1);
+    // Lecture épurée : ni titre, ni commandes, ni sous-titres, ni suggestions, aucune interaction
+    const yt = await screen.locator('iframe[src*="youtube-nocookie.com"]').getAttribute("src");
+    for (const param of ["controls=0", "rel=0", "fs=0", "cc_load_policy=0", "iv_load_policy=3", "disablekb=1"]) expect(yt).toContain(param);
+    expect(await screen.locator('iframe[src*="player.vimeo.com"]').getAttribute("src")).toContain("background=1");
+    await expect(screen.locator('iframe[src*="youtube-nocookie.com"]')).toHaveCSS("pointer-events", "none");
+    if (process.env.E2E_SCREENSHOTS) {
+      await screen.waitForTimeout(9000);
+      await screen.screenshot({ path: "tests/e2e/__screens__/14-ecran-video.png" });
+    }
   });
 
   test("médias : import d'une vidéo MP4 et lecture par plages (Safari / iPhone)", async ({ page }) => {
