@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Show Events
 
-## Getting Started
+MVP SaaS de fundraising live pour associations, galas et institutions.
 
-First, run the development server:
+Le produit permet de creer un evenement, afficher un show grand ecran, saisir des promesses de dons depuis une regie, recevoir des promesses via formulaire mobile avec QR code, et personnaliser le rendu visuel du show.
+
+## Stack
+
+- Next.js App Router, TypeScript, Tailwind CSS
+- Better Auth pour l'authentification
+- Prisma 7 + PostgreSQL pour Neon
+- Architecture cible Option B: Vercel + Neon + Ably
+- Mode demo local synchronise par `localStorage` + `BroadcastChannel`
+
+## Parcours MVP
+
+- Dashboard SaaS multi-associations: `/`
+- Regie live: `/events/evt-gala-2026/regie`
+- Studio show: `/events/evt-gala-2026/studio`
+- Ecran grand format: `/show/evt-gala-2026`
+- Formulaire mobile: `/donate/gala-lev-2026`
+
+Le formulaire mobile est sans compte et sans PIN: toute personne qui possede le lien prive peut envoyer une promesse.
+
+## Environnement
+
+Copier `.env.example` vers `.env.local` ou `.env`, puis renseigner:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=change-me
+DATABASE_URL=postgresql://...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sur Vercel, Better Auth utilise `BETTER_AUTH_URL` si defini, sinon `NEXT_PUBLIC_APP_URL`, sinon le domaine automatique `VERCEL_URL` en HTTPS. Cela permet de tester l'auth sur le domaine Vercel attribue avant le domaine final.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commandes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+npm run lint
+npm run build
+npm run prisma:generate
+```
 
-## Learn More
+Pour appliquer le schema a Neon:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run prisma:migrate -- --name init_show_events
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Le MVP actuel reste testable sans migration grace au mode demo local. Le schema Prisma contient les tables Better Auth (`user`, `session`, `account`, `verification`) et les tables metier (`Organization`, `Membership`, `Event`, `Donation`, `ShowLayout`, `AuditLog`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Decisions produit integrees
 
-## Deploy on Vercel
+- Promesses de dons, pas paiement obligatoire dans le MVP.
+- Formulaire mobile par lien/QR code, sans compte et sans PIN.
+- Affichage immediat configurable ou validation admin.
+- Total public incluant les promesses selon le reglage evenement.
+- Roles prevus: super admin, admin association, operateur evenement.
+- Devises: EUR, ILS, USD.
+- Langues du show: francais et hebreu avec direction RTL.
+- Studio visuel avec themes et blocs activables.
+- Show navigateur plein ecran pour videoprojecteur ou mur LED.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Prochain branchement prod
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Creer le projet Neon et renseigner `DATABASE_URL`.
+2. Deployer sur Vercel avec `BETTER_AUTH_SECRET`.
+3. Lancer la migration Prisma.
+4. Brancher Ably pour remplacer la synchro locale par des canaux temps reel.
+5. Ajouter upload logo via stockage S3 compatible.

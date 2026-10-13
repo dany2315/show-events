@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f7f5ef;
   --foreground: #171717;
+  --ink: #171717;
+  --muted: #6f6a5f;
+  --paper: #fffdf7;
+  --line: #e7dfcf;
+  --gold: #d7a936;
+  --coral: #e65f46;
+  --teal: #138a8a;
+  --midnight: #111525;
 }
 
 @theme inline {
@@ -12,15 +20,95 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
 }
 
 body {
-  background: var(--background);
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 18% -10%, rgba(215, 169, 54, 0.18), transparent 32rem),
+    radial-gradient(circle at 88% 8%, rgba(19, 138, 138, 0.16), transparent 28rem),
+    var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(215, 169, 54, 0.38);
+}
+
+.show-stage {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 34%),
+    radial-gradient(circle at 20% 10%, rgba(215, 169, 54, 0.36), transparent 24rem),
+    radial-gradient(circle at 82% 16%, rgba(230, 95, 70, 0.24), transparent 26rem),
+    radial-gradient(circle at 50% 95%, rgba(19, 138, 138, 0.28), transparent 32rem),
+    #111525;
+}
+
+.spark-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 54px 54px;
+}
+
+.animate-rise {
+  animation: rise 700ms ease-out both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2.6s ease-in-out infinite;
+}
+
+.ticker-track {
+  animation: ticker 32s linear infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(215, 169, 54, 0));
+  }
+  50% {
+    transform: scale(1.012);
+    filter: drop-shadow(0 0 24px rgba(215, 169, 54, 0.42));
+  }
+}
+
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
