@@ -62,10 +62,11 @@ async function main() {
   const live = await createEvent(org.id, "Gala E2E", "LIVE");
   const ended = await createEvent(org.id, "Gala terminé E2E", "ENDED");
   const concurrency = await Promise.all([1, 2, 3].map((n) => createEvent(org.id, `Charge E2E ${n}`, "LIVE")));
+  const wifi = await createEvent(org.id, "Salle Wi-Fi E2E", "LIVE");
 
   writeFileSync(
     "tests/e2e/.state.json",
-    JSON.stringify({ stamp, orgId: org.id, orgSlug: org.slug, adminEmail: admin.email, password, live, ended, concurrency }, null, 2),
+    JSON.stringify({ stamp, orgId: org.id, orgSlug: org.slug, adminEmail: admin.email, password, live, ended, concurrency, wifi }, null, 2),
   );
   console.log(`[e2e] association de test ${org.slug} prête`);
 }

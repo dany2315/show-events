@@ -11,6 +11,7 @@ export type E2EState = {
   live: EventTokens;
   ended: EventTokens;
   concurrency: EventTokens[];
+  wifi: EventTokens;
 };
 
 export function state(): E2EState {

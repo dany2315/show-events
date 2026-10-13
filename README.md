@@ -16,7 +16,7 @@ Ce dépôt implémente le **cahier des charges MVP 1.0** tel que défini (héber
 | Utilisateur Show (`SHOW_OPERATOR`) | Voit uniquement « Mes événements » → Studio Show, Régie Live, Écran géant. Aucune page ni API de gestion. |
 | Création d'événements | Nom, date, objectif, devise, langue, style de départ ou modèle. Lien de diffusion, régie et formulaire créés automatiquement. |
 | Saisie manuelle | Régie : nom, montant, montants rapides (€/$ : 100·500·1 000·5 000 — ₪ : 180·360·1 800·3 600), case « Don fictif » décochée par défaut. |
-| Formulaire mobile | `/d/[jeton]` : nom + montant, sans compte, sans PIN, sans validation ; affiché immédiatement. Anti-robot (champ piège) et limite 5 promesses/min/appareil. |
+| Formulaire mobile | `/d/[jeton]` : nom + montant, sans compte, sans PIN, sans validation ; affiché immédiatement. Anti-robot (champ piège), limite de 5 promesses/min **par téléphone** (cookie anonyme) et plafond anti-inondation de 600/min par IP : des centaines d'invités sur le même Wi-Fi de salle ne se bloquent pas entre eux. |
 | Dons fictifs | Identifiés uniquement côté administration ; affichés et **comptés dans le total** comme les dons réels. Sous-totaux réels / fictifs en interne. |
 | Total du show | Somme de toutes les promesses (réelles + fictives), sans validation préalable. |
 | Régie Live | Total, dernières promesses, ajout, correction, suppression (historisées), célébration, animation objectif, pause des animations, message à l'écran, aperçu en direct. Ordinateur et mobile. |
@@ -110,6 +110,7 @@ Les tests de bout en bout couvrent : régie (réel + fictif, total public), form
 
 ## Sécurité
 - Aucune inscription publique : comptes créés par le Super Admin ou l'administrateur de l'association ; mots de passe provisoires affichés une seule fois.
+- Connexion protégée contre la force brute : 30 tentatives/min par IP (`AUTH_SIGNIN_RATE_LIMIT`). Ne concerne que les comptes (équipe) : les donateurs ne se connectent jamais.
 - Autorisation vérifiée côté serveur sur chaque page, Server Action et API (matrice `src/lib/permissions.ts`).
 - Liens publics non devinables, stockés uniquement sous forme d'empreinte (SHA-256), régénérables.
 - Le public ne reçoit jamais l'indicateur réel / fictif.

@@ -49,12 +49,14 @@ export const auth = betterAuth({
     process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
   ].filter((v): v is string => Boolean(v)),
   rateLimit: {
-    // Protection anti-force-brute, compatible avec plusieurs opérateurs derrière le même Wi-Fi de salle.
+    // Protection anti-force-brute (par IP) sur la connexion des comptes uniquement : le formulaire
+    // public des donateurs ne demande pas de connexion. 30 tentatives/min par IP laissent toute une
+    // équipe se connecter en même temps depuis le Wi-Fi de la salle.
     enabled: process.env.NODE_ENV === "production",
     window: 60,
     max: 100,
     customRules: {
-      "/sign-in/email": { window: 60, max: Number(process.env.AUTH_SIGNIN_RATE_LIMIT ?? 10) },
+      "/sign-in/email": { window: 60, max: Number(process.env.AUTH_SIGNIN_RATE_LIMIT ?? 30) },
       "/change-password": { window: 60, max: 5 },
     },
   },

@@ -52,3 +52,6 @@ next-env.d.ts
 # tests
 /tests/e2e/.state.json
 /tests/e2e/__screens__/
+
+# identifiants de test locaux
+/IDENTIFIANTS-TEST.md

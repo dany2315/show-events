@@ -1,15 +1,36 @@
+import { randomBytes } from "node:crypto";
 import { after } from "next/server";
+import { cookies } from "next/headers";
 import { clientIp, errorResponse, json } from "@/lib/api";
 import { recordDonation } from "@/lib/donations";
 import { resolveAccessToken } from "@/lib/event-access";
 import { flushOutbox } from "@/lib/live/server";
-import { hashIp } from "@/lib/tokens";
+import { hashToken, hashIp } from "@/lib/tokens";
 import { publicDonationSchema } from "@/lib/validation";
+
+/** Identifiant anonyme du téléphone (aucune donnée personnelle) pour la limite anti-abus par appareil. */
+const DEVICE_COOKIE = "fl_device";
+
+async function deviceId() {
+  const store = await cookies();
+  const existing = store.get(DEVICE_COOKIE)?.value;
+  if (existing && /^[A-Za-z0-9_-]{16,64}$/.test(existing)) return existing;
+  const id = randomBytes(16).toString("base64url");
+  store.set(DEVICE_COOKIE, id, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  return id;
+}
 
 /**
  * Formulaire mobile (lien / QR code) : sans compte, sans PIN, sans validation.
  * La promesse est réelle et apparaît immédiatement sur le show.
- * Protections : champ piège, limite de débit par appareil, idempotence.
+ * Protections : champ piège, limite par téléphone (5/min) et plafond large par IP
+ * (tout le Wi-Fi d'une salle partage souvent une seule IP), idempotence.
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/d/[token]">) {
   try {
@@ -31,6 +52,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/d/[token]">
       source: "MOBILE",
       idempotencyKey: body.idempotencyKey,
       ipHash: hashIp(clientIp(request)),
+      deviceHash: hashToken(`device:${await deviceId()}`).slice(0, 32),
     });
     after(() => flushOutbox(eventId).catch(() => undefined));
     return json({

@@ -43,7 +43,13 @@ export const MAX_GOAL_AMOUNT = 1_000_000_000;
 export const MAX_DONOR_NAME_LENGTH = 60;
 
 /** Limite anti-abus du formulaire public : nombre de promesses par appareil et par minute. */
-export const PUBLIC_RATE_LIMIT = { max: 5, windowMs: 60_000 };
+/**
+ * Limites anti-abus du formulaire public, par événement et par minute :
+ *  - par appareil (cookie anonyme) : un même téléphone ne peut pas inonder le show ;
+ *  - par adresse IP : plafond large, car tout le Wi-Fi d'une salle (500 invités et plus)
+ *    sort souvent sur Internet avec une seule et même IP.
+ */
+export const PUBLIC_RATE_LIMIT = { perDevice: 5, perIp: 600, windowMs: 60_000 };
 
 /** Taille maximale d'un logo / image importé. */
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;

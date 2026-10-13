@@ -31,6 +31,7 @@ export type RecordDonationInput = {
   source: "MANUAL" | "MOBILE";
   idempotencyKey?: string | null;
   ipHash?: string | null;
+  deviceHash?: string | null;
   createdById?: string | null;
 };
 
@@ -64,6 +65,7 @@ export async function recordDonation(input: RecordDonationInput) {
   const isFictitious = input.source === "MOBILE" ? false : input.isFictitious;
   const key = input.idempotencyKey ?? null;
   const ipHash = input.source === "MOBILE" ? (input.ipHash ?? null) : null;
+  const deviceHash = input.source === "MOBILE" ? (input.deviceHash ?? null) : null;
   const id = "dn_" + randomBytes(12).toString("base64url");
   const windowSeconds = Math.round(PUBLIC_RATE_LIMIT.windowMs / 1000);
 
@@ -84,12 +86,17 @@ export async function recordDonation(input: RecordDonationInput) {
             SELECT count(*) FROM "donation" d
             WHERE d."eventId" = e.id AND d."ipHash" = ${ipHash}::text
               AND d."createdAt" > (now() AT TIME ZONE 'UTC') - make_interval(secs => ${windowSeconds}::int)
-          ) < ${PUBLIC_RATE_LIMIT.max}::int)
+          ) < ${PUBLIC_RATE_LIMIT.perIp}::int)
+          AND (${deviceHash}::text IS NULL OR (
+            SELECT count(*) FROM "donation" d
+            WHERE d."eventId" = e.id AND d."deviceHash" = ${deviceHash}::text
+              AND d."createdAt" > (now() AT TIME ZONE 'UTC') - make_interval(secs => ${windowSeconds}::int)
+          ) < ${PUBLIC_RATE_LIMIT.perDevice}::int)
         RETURNING e.id, e.currency, e.status, e."liveTotal", e."liveCount"
       ), ins AS (
-        INSERT INTO "donation" (id, "eventId", "donorName", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "createdById", "createdAt", "updatedAt")
+        INSERT INTO "donation" (id, "eventId", "donorName", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "deviceHash", "createdById", "createdAt", "updatedAt")
         SELECT ${id}, ev.id, ${donorName}, ${input.amount}::int, ev.currency, ${isFictitious}::boolean, ev.status = 'TEST', ${input.source}::"DonationSource",
-               ${key}::text, ${ipHash}::text, ${input.createdById ?? null}::text, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC'
+               ${key}::text, ${ipHash}::text, ${deviceHash}::text, ${input.createdById ?? null}::text, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC'
         FROM ev
         RETURNING id, "donorName", amount, "isFictitious", "createdAt"
       ), ob AS (
@@ -124,7 +131,7 @@ export async function recordDonation(input: RecordDonationInput) {
     };
   }
   // Rien n'a été écrit : on détermine pourquoi (chemin rare, hors flux normal).
-  return explainRejection(input.eventId, key, ipHash);
+  return explainRejection(input.eventId, key, ipHash ?? deviceHash);
 }
 
 function isUniqueViolation(error: unknown) {
@@ -142,7 +149,7 @@ async function existingResult(eventId: string, key: string) {
   return { donation: existing, ...totals, duplicate: true };
 }
 
-async function explainRejection(eventId: string, key: string | null, ipHash: string | null) {
+async function explainRejection(eventId: string, key: string | null, clientHash: string | null) {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, organization: { select: { status: true } } } });
   if (!event) throw new DonationError("EVENT_NOT_FOUND", "Événement introuvable");
   if (event.organization.status === "SUSPENDED") throw new DonationError("ORG_SUSPENDED", "Association suspendue");
@@ -152,7 +159,7 @@ async function explainRejection(eventId: string, key: string | null, ipHash: str
     const existing = await prisma.donation.findUnique({ where: { eventId_idempotencyKey: { eventId, idempotencyKey: key } } });
     if (existing) return existingResult(eventId, key);
   }
-  if (ipHash) throw new DonationError("RATE_LIMITED", "Trop de promesses en peu de temps");
+  if (clientHash) throw new DonationError("RATE_LIMITED", "Trop de promesses en peu de temps");
   throw new DonationError("INVALID", "Promesse refusée");
 }
 

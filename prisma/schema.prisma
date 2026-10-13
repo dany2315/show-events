@@ -212,7 +212,10 @@ model Donation {
   isTest         Boolean        @default(false)
   source         DonationSource
   idempotencyKey String?
+  /// Empreinte de l'adresse IP (plafond anti-inondation, partagé par tout un Wi-Fi de salle)
   ipHash         String?
+  /// Empreinte de l'appareil (cookie anonyme) : limite anti-abus par téléphone
+  deviceHash     String?
   createdById    String?
   deletedAt      DateTime?
   createdAt      DateTime       @default(now())
@@ -223,6 +226,7 @@ model Donation {
   @@unique([eventId, idempotencyKey])
   @@index([eventId, createdAt])
   @@index([eventId, ipHash, createdAt])
+  @@index([eventId, deviceHash, createdAt])
   @@map("donation")
 }
 

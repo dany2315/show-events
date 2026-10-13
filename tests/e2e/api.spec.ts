@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { randomBytes } from "node:crypto";
+import { expect, request as playwrightRequest, test } from "@playwright/test";
 import { key, state } from "./helpers";
 
 type Snapshot = { total: number; count: number; seq: number; donations: { id: string; donorName: string; amount: number }[] };
@@ -43,6 +44,24 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
     expect(res.ok()).toBeTruthy();
     const snap = (await (await request.get(`/api/live/screen/${s.live.displayToken}`)).json()) as Snapshot;
     expect(snap.donations.some((d) => d.donorName === "Robot")).toBe(false);
+  });
+
+  test("salle entière derrière un seul Wi-Fi : 150 téléphones, même IP, aucune promesse refusée", async ({ baseURL }) => {
+    test.setTimeout(180_000);
+    const s = state();
+    const ctx = await playwrightRequest.newContext({ baseURL });
+    const phones = Array.from({ length: 150 }, (_, i) => ({ device: randomBytes(16).toString("base64url"), i }));
+    const responses = await Promise.all(
+      phones.map(({ device, i }) =>
+        ctx.post(`/api/d/${s.wifi.formToken}`, {
+          data: { donorName: `Invité ${i}`, amount: 18, idempotencyKey: key() },
+          headers: { "x-forwarded-for": "198.51.100.7", cookie: `fl_device=${device}` },
+          timeout: 120_000,
+        }),
+      ),
+    );
+    expect(responses.map((r) => r.status()).filter((st) => st !== 200)).toEqual([]);
+    await ctx.dispose();
   });
 
   test("limite anti-abus : 5 promesses par minute et par appareil", async ({ request }) => {
