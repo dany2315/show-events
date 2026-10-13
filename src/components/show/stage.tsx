@@ -261,7 +261,7 @@ export function ShowStage({
         </div>
       )}
 
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-50 size-full" />
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 size-full" />
     </div>
   );
 }
