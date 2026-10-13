@@ -1,0 +1,320 @@
+// Fundraising Live — modèle de données MVP 1.0
+// Montants stockés en unités monétaires entières (jamais en float).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Authentification (Better Auth) ────────────────────────────────────────
+
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  /// USER ou SUPER_ADMIN (rôle plateforme)
+  role          String       @default("USER")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  memberships   Membership[]
+  donations     Donation[]   @relation("DonationCreatedBy")
+  auditLogs     AuditLog[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─── Domaine ───────────────────────────────────────────────────────────────
+
+enum MemberRole {
+  ORG_ADMIN
+  SHOW_OPERATOR
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum EventStatus {
+  DRAFT
+  LIVE
+  ENDED
+}
+
+enum Currency {
+  EUR
+  ILS
+  USD
+}
+
+enum Locale {
+  fr
+  he
+}
+
+enum DonationSource {
+  MANUAL
+  MOBILE
+}
+
+enum AccessType {
+  DONATION_FORM
+  DISPLAY
+}
+
+enum PlanType {
+  TRIAL
+  EVENT_PASS
+  PRO_MONTHLY
+  PRO_YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+model Organization {
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  logoUrl         String?
+  country         String         @default("FR")
+  defaultCurrency Currency       @default(EUR)
+  defaultLocale   Locale         @default(fr)
+  status          OrgStatus      @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  memberships     Membership[]
+  events          Event[]
+  templates       ShowTemplate[]
+  subscription    Subscription?
+  media           MediaAsset[]
+  auditLogs       AuditLog[]
+
+  @@map("organization")
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MemberRole
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("membership")
+}
+
+model Event {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  date           DateTime
+  goalAmount     Int
+  currency       Currency      @default(EUR)
+  locale         Locale        @default(fr)
+  status         EventStatus   @default(DRAFT)
+  /// Logo spécifique à l'événement (sinon celui de l'association)
+  logoUrl        String?
+  /// État de pilotage du direct : { paused, overlay, overlayAt }
+  liveControl    Json          @default("{}")
+  /// Compteurs du direct, maintenus atomiquement à chaque écriture de promesse
+  /// (total public = promesses réelles + fictives, hors promesses supprimées).
+  liveTotal      Int           @default(0)
+  liveCount      Int           @default(0)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  donations      Donation[]
+  layout         ShowLayout?
+  accesses       EventAccess[]
+  outbox         OutboxEvent[]
+
+  @@index([organizationId, date])
+  @@map("event")
+}
+
+model Donation {
+  id             String         @id @default(cuid())
+  eventId        String
+  donorName      String
+  amount         Int
+  currency       Currency
+  isFictitious   Boolean        @default(false)
+  source         DonationSource
+  idempotencyKey String?
+  ipHash         String?
+  createdById    String?
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy      User?          @relation("DonationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, idempotencyKey])
+  @@index([eventId, createdAt])
+  @@index([eventId, ipHash, createdAt])
+  @@map("donation")
+}
+
+model ShowLayout {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  config    Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("show_layout")
+}
+
+model ShowTemplate {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  config         Json
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("show_template")
+}
+
+model EventAccess {
+  id        String     @id @default(cuid())
+  eventId   String
+  type      AccessType
+  tokenHash String     @unique
+  revokedAt DateTime?
+  createdAt DateTime   @default(now())
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, type])
+  @@map("event_access")
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String             @unique
+  plan             PlanType
+  status           SubscriptionStatus @default(ACTIVE)
+  /// Crédits d'événements (paiement par événement / essai)
+  eventCredits     Int                @default(0)
+  currentPeriodEnd DateTime?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscription")
+}
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  organizationId String?
+  actorId        String?
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@map("audit_log")
+}
+
+/// Outbox : chaque changement du direct est persisté avant diffusion (Ably),
+/// et sert de journal ordonné pour la resynchronisation des écrans.
+model OutboxEvent {
+  seq         Int       @id @default(autoincrement())
+  eventId     String
+  type        String
+  payload     Json
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, seq])
+  @@index([publishedAt])
+  @@map("outbox_event")
+}
+
+model MediaAsset {
+  id             String       @id @default(cuid())
+  organizationId String
+  mimeType       String
+  size           Int
+  data           Bytes
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("media_asset")
+}

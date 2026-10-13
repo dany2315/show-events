@@ -1,0 +1,278 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-rubik), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-playfair), var(--font-frank), Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-live: var(--live);
+  --color-success: var(--success);
+  --color-ink: var(--ink);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ─── Palette Fundraising Live ─────────────────────────────────────────────
+   Papier chaud + encre nuit + or de gala. Rouge « live » réservé au direct. */
+:root {
+  --background: #f8f6f2;
+  --foreground: #17141f;
+  --card: #ffffff;
+  --card-foreground: #17141f;
+  --popover: #ffffff;
+  --popover-foreground: #17141f;
+  --primary: #1d1733;
+  --primary-foreground: #fbf7ee;
+  --secondary: #efebe3;
+  --secondary-foreground: #1d1733;
+  --muted: #f0ece5;
+  --muted-foreground: #6c6677;
+  --accent: #f3ecdc;
+  --accent-foreground: #1d1733;
+  --destructive: #d43c3c;
+  --border: #e6e0d6;
+  --input: #ddd6ca;
+  --ring: #c9973f;
+  --gold: #c9973f;
+  --gold-soft: #f6ead0;
+  --live: #e5484d;
+  --success: #1f9d63;
+  --ink: #14111f;
+  --radius: 0.75rem;
+  --sidebar: #14111f;
+  --sidebar-foreground: #ece7f5;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+}
+
+/* Console sombre : Studio Show et Régie Live (lisible en salle, dans le noir). */
+.dark {
+  --background: #0c0a12;
+  --foreground: #f1edf8;
+  --card: #15121e;
+  --card-foreground: #f1edf8;
+  --popover: #1a1625;
+  --popover-foreground: #f1edf8;
+  --primary: #e4b65c;
+  --primary-foreground: #1a1206;
+  --secondary: #221d2f;
+  --secondary-foreground: #f1edf8;
+  --muted: #1d1929;
+  --muted-foreground: #9d96ad;
+  --accent: #262036;
+  --accent-foreground: #f1edf8;
+  --destructive: #ff6166;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.13);
+  --ring: #e4b65c;
+  --gold: #e4b65c;
+  --gold-soft: rgba(228, 182, 92, 0.14);
+  --live: #ff4d55;
+  --success: #3ccf8e;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 35%, transparent);
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+/* Grain de papier très léger sur les fonds clairs. */
+.paper-grain {
+  background-image: radial-gradient(rgba(23, 20, 31, 0.035) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+.gold-text {
+  background: linear-gradient(100deg, #b98731 0%, #e9c77a 38%, #fff3cf 52%, #d9a441 70%, #a8761f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.live-dot {
+  position: relative;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--live);
+}
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: var(--live);
+  opacity: 0.45;
+  animation: live-pulse 1.6s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  0% { transform: scale(0.6); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+@keyframes fl-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fl-rise {
+  animation: fl-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* ─── Show (écran géant) ───────────────────────────────────────────────── */
+
+.show-root {
+  color: var(--show-text);
+  background:
+    radial-gradient(120% 90% at 18% 8%, color-mix(in oklab, var(--show-bg2) 75%, transparent) 0%, transparent 55%),
+    radial-gradient(90% 80% at 92% 100%, color-mix(in oklab, var(--show-accent) 22%, transparent) 0%, transparent 60%),
+    var(--show-bg);
+}
+
+.show-display {
+  font-family: var(--show-display);
+}
+
+.show-panel {
+  background: var(--show-panel);
+  border: 1px solid var(--show-panel-border);
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.show-accent-text {
+  background: linear-gradient(
+    100deg,
+    color-mix(in oklab, var(--show-accent) 80%, black) 0%,
+    var(--show-accent) 30%,
+    var(--show-accent2) 50%,
+    var(--show-accent) 70%,
+    color-mix(in oklab, var(--show-accent) 75%, black) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: show-sheen 7s ease-in-out infinite;
+}
+
+@keyframes show-sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.show-bar-fill {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--show-accent) 70%, black), var(--show-accent), var(--show-accent2));
+  box-shadow: 0 0 24px color-mix(in oklab, var(--show-accent) 60%, transparent);
+}
+[dir="rtl"] .show-bar-fill {
+  background: linear-gradient(270deg, color-mix(in oklab, var(--show-accent) 70%, black), var(--show-accent), var(--show-accent2));
+}
+
+.show-bar-shine {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: show-shine 3.2s ease-in-out infinite;
+}
+@keyframes show-shine {
+  0% { transform: translateX(-120%); }
+  60%, 100% { transform: translateX(260%); }
+}
+
+@keyframes show-twinkle {
+  0%, 100% { opacity: 0.1; transform: scale(0.6); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes show-float {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  15% { opacity: var(--o, 0.6); }
+  85% { opacity: var(--o, 0.6); }
+  100% { transform: translate3d(var(--dx, 0px), -260px, 0); opacity: 0; }
+}
+@keyframes show-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(var(--dx, 30px), var(--dy, -20px), 0) scale(1.08); }
+}
+@keyframes show-rays {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.show-row-highlight {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--show-accent) 26%, transparent), transparent 80%);
+}
+[dir="rtl"] .show-row-highlight {
+  background: linear-gradient(270deg, color-mix(in oklab, var(--show-accent) 26%, transparent), transparent 80%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .show-accent-text,
+  .show-bar-shine,
+  .live-dot::after {
+    animation: none;
+  }
+}

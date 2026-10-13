@@ -1,0 +1,67 @@
+import type { AppLocale, CurrencyCode, EventStatusCode } from "../constants";
+import type { ShowConfig } from "../show/config";
+
+/** Une promesse telle que vue par le public : aucune distinction réel / fictif. */
+export type PublicDonation = {
+  id: string;
+  donorName: string;
+  amount: number;
+  createdAt: string;
+};
+
+export type LiveControl = {
+  /** Animations en pause : les promesses continuent d'arriver, sans effets. */
+  paused: boolean;
+  /** Message affiché en surimpression sur l'écran géant. */
+  overlay: string | null;
+  overlayAt: string | null;
+};
+
+export const EMPTY_CONTROL: LiveControl = { paused: false, overlay: null, overlayAt: null };
+
+export type LiveEventInfo = {
+  id: string;
+  name: string;
+  date: string;
+  currency: CurrencyCode;
+  locale: AppLocale;
+  goalAmount: number;
+  status: EventStatusCode;
+  logoUrl: string | null;
+  organizationName: string;
+};
+
+export type LiveSnapshot = {
+  seq: number;
+  event: LiveEventInfo;
+  total: number;
+  count: number;
+  donations: PublicDonation[];
+  control: LiveControl;
+  layout: ShowConfig;
+  layoutVersion: number;
+  formUrl: string | null;
+};
+
+export type LiveCommand = "celebrate" | "goal";
+
+export type LiveMessage =
+  | { seq: number; type: "donation.created"; donation: PublicDonation; total: number; count: number }
+  | { seq: number; type: "donation.updated"; donation: PublicDonation; total: number; count: number }
+  | { seq: number; type: "donation.deleted"; donationId: string; total: number; count: number }
+  | { seq: number; type: "control"; control: LiveControl; command: LiveCommand | null }
+  | { seq: number; type: "layout.updated"; version: number }
+  | { seq: number; type: "event.updated" };
+
+export type LiveMessageType = LiveMessage["type"];
+
+/** Charge utile d'un message sans son numéro de séquence (assigné par l'outbox). */
+export type LiveMessageInput = LiveMessage extends infer M ? (M extends { seq: number } ? Omit<M, "seq"> : never) : never;
+
+export type LiveEventsResponse =
+  | { mode: "events"; seq: number; messages: LiveMessage[] }
+  | { mode: "resync"; snapshot: LiveSnapshot };
+
+export function channelName(eventId: string) {
+  return `live:${eventId}`;
+}
