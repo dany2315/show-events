@@ -36,6 +36,7 @@ export default async function StudioPage({ params }: PageProps<"/o/[slug]/events
       orgLogoUrl={ctx.org.logoUrl}
       displayUrl={links.displayUrl}
       templates={templates.map((tpl) => ({ id: tpl.id, name: tpl.name, config: normalizeShowConfig(tpl.config) }))}
+      blobEnabled={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
       backHref={ctx.can("org.view") ? `/o/${slug}/events/${event.id}` : `/o/${slug}`}
     />
   );

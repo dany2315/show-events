@@ -9,6 +9,7 @@ import { formatMoney, goalProgress } from "@/lib/money";
 import type { LiveControl, LiveEventInfo, PublicDonation } from "@/lib/live/types";
 import { dictionaries } from "@/i18n/dictionaries";
 import { Ambient } from "./ambient";
+import { VideoMedia } from "./video-media";
 import { typo } from "./fit";
 import { ShowBlockContent, type BlockContext } from "./blocks";
 
@@ -199,10 +200,16 @@ export function ShowStage({
       className={`show-root relative overflow-hidden ${lowPower ? "show-lowpower" : ""} ${className ?? ""}`}
       style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT, ...(cssVars as React.CSSProperties) }}
     >
-      {config.backgroundImage && (
+      {(config.backgroundVideo || config.backgroundImage) && (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={config.backgroundImage} alt="" className="absolute inset-0 size-full object-cover" draggable={false} />
+          {config.backgroundVideo ? (
+            <div className="absolute inset-0">
+              <VideoMedia url={config.backgroundVideo} muted loop fit="cover" box={{ width: STAGE_WIDTH, height: STAGE_HEIGHT }} />
+            </div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={config.backgroundImage!} alt="" className="absolute inset-0 size-full object-cover" draggable={false} />
+          )}
           <div className="absolute inset-0" style={{ background: "var(--show-bg)", opacity: config.backgroundDim }} />
           <div
             className="absolute inset-0"

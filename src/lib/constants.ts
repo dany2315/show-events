@@ -54,6 +54,11 @@ export const PUBLIC_RATE_LIMIT = { perDevice: 5, perIp: 600, windowMs: 60_000 };
 /** Taille maximale d'un logo / image importé. */
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/gif"];
+/** Vidéos stockées en base (sans stockage externe) : limité par la taille maximale d'une requête Vercel. */
+export const MAX_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
+export const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm"];
+/** Avec Vercel Blob (BLOB_READ_WRITE_TOKEN) : envoi direct depuis le navigateur, sans passer par le serveur. */
+export const MAX_BLOB_UPLOAD_BYTES = 300 * 1024 * 1024;
 
 /** Grille tarifaire SaaS (hypothèses commerciales du cahier des charges, modifiables). */
 export const PLAN_CATALOG: Record<PlanTypeCode, { price: number; period: "event" | "month" | "year" | "trial"; credits: number }> = {

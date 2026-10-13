@@ -39,6 +39,7 @@ import { QUICK_AMOUNTS } from "@/lib/constants";
 import type { LiveSnapshot, PublicDonation } from "@/lib/live/types";
 import { cn } from "@/lib/utils";
 import { useHistory } from "./use-history";
+import { findOverlaps } from "@/lib/show/smart-layout";
 import { AnimationsPanel, ElementsPanel, PropertiesPanel, StylePanel, TextsPanel } from "./panels";
 
 type Template = { id: string; name: string; config: ShowConfig };
@@ -53,7 +54,9 @@ export function StudioClient({
   displayUrl,
   templates: initialTemplates,
   backHref,
+  blobEnabled,
 }: {
+  blobEnabled: boolean;
   organizationId: string;
   snapshot: LiveSnapshot;
   eventLogoUrl: string | null;
@@ -77,6 +80,7 @@ export function StudioClient({
   const [templateDialog, setTemplateDialog] = useState(false);
   const [logo, setLogo] = useState<string | null>(eventLogoUrl);
   const dirty = useMemo(() => JSON.stringify(config) !== JSON.stringify(savedConfig), [config, savedConfig]);
+  const overlapping = useMemo(() => new Set(findOverlaps(config.blocks).flat()), [config.blocks]);
 
   // Aperçu : données réelles + dons simulés localement.
   const [previewTotal, setPreviewTotal] = useState(snapshot.total);
@@ -203,7 +207,11 @@ export function StudioClient({
           <div
             className={cn(
               "relative size-full cursor-move rounded-md outline-offset-4 transition-[outline-color]",
-              active ? "outline outline-[3px] outline-[#e4b65c]" : "outline outline-2 outline-transparent hover:outline-white/40",
+              active
+                ? "outline outline-[3px] outline-[#e4b65c]"
+                : overlapping.has(block.type)
+                  ? "outline-dashed outline-[3px] outline-amber-400/80"
+                  : "outline outline-2 outline-transparent hover:outline-white/40",
             )}
           >
             {content}
@@ -216,7 +224,7 @@ export function StudioClient({
         </Rnd>
       );
     },
-    [scale, snap, selected, setBlockRect, t],
+    [scale, snap, selected, setBlockRect, t, overlapping],
   );
 
   async function changeLogo(url: string | null) {
@@ -262,11 +270,12 @@ export function StudioClient({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={snap ? "secondary" : "ghost"} size="icon" onClick={() => setSnap((v) => !v)} aria-pressed={snap} aria-label={t.studio.snap}>
-                <Grid3x3 className="size-4" />
+              <Button variant={snap ? "secondary" : "ghost"} size="sm" onClick={() => setSnap((v) => !v)} aria-pressed={snap} aria-label={t.studio.snap}>
+                <Grid3x3 className={cn("size-4", snap && "text-gold")} />
+                <span className="hidden xl:inline">{t.studio.snap}</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t.studio.snap}</TooltipContent>
+            <TooltipContent className="max-w-56">{t.studio.snapHelp}</TooltipContent>
           </Tooltip>
           <span className="mx-1 h-6 w-px bg-border" />
         </div>
@@ -339,10 +348,10 @@ export function StudioClient({
             </TabsList>
             <ScrollArea className="min-h-0 flex-1">
               <TabsContent value="blocks" className="mt-0">
-                <ElementsPanel config={config} update={update} selected={selected} onSelect={setSelected} />
+                <ElementsPanel config={config} update={update} selected={selected} onSelect={setSelected} rtl={snapshot.event.locale === "he"} />
               </TabsContent>
               <TabsContent value="style" className="mt-0">
-                <StylePanel config={config} update={update} organizationId={organizationId} logoUrl={logo} onLogoChange={changeLogo} />
+                <StylePanel config={config} update={update} organizationId={organizationId} logoUrl={logo} onLogoChange={changeLogo} blobEnabled={blobEnabled} />
               </TabsContent>
               <TabsContent value="anim" className="mt-0">
                 <AnimationsPanel config={config} update={update} currencySymbol={CURRENCY_SYMBOL[snapshot.event.currency]} />
@@ -362,6 +371,7 @@ export function StudioClient({
           }}
         >
           <ShowViewport className="flex-1 rounded-xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] ring-1 ring-white/10" background="#050407" onScale={setScale}>
+            <>
             <ShowStage
               config={config}
               event={event}
@@ -374,6 +384,19 @@ export function StudioClient({
               lowPower={lowPower}
               wrapBlock={wrapBlock}
             />
+            {/* Grille du magnétisme (repères tous les 4 pas de 10 px) */}
+            {snap && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-30"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(to right, rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.07) 1px, transparent 1px)",
+                  backgroundSize: `${GRID * 4}px ${GRID * 4}px`,
+                }}
+              />
+            )}
+            </>
           </ShowViewport>
           <p className="mt-3 hidden text-center text-xs text-muted-foreground lg:block">{t.studio.keyboardHelp}</p>
         </main>
@@ -381,7 +404,7 @@ export function StudioClient({
         {/* Panneau droit */}
         <aside className="order-3 hidden min-h-0 border-s lg:block lg:w-[300px] lg:shrink-0">
           <ScrollArea className="h-full">
-            <PropertiesPanel config={config} update={update} selected={selected} />
+            <PropertiesPanel config={config} update={update} selected={selected} organizationId={organizationId} blobEnabled={blobEnabled} />
           </ScrollArea>
         </aside>
       </div>

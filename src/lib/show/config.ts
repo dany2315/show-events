@@ -4,7 +4,7 @@ import { z } from "zod";
 export const STAGE_WIDTH = 1920;
 export const STAGE_HEIGHT = 1080;
 
-export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode"] as const;
+export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode", "video"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
 export const THEME_IDS = ["gala", "moderne", "minimal", "feerie", "nature"] as const;
@@ -25,6 +25,14 @@ const hexColor = z
   .nullable();
 
 const pct = z.number().min(0).max(100);
+
+/** URL de média : fichier hébergé par la plateforme, Vercel Blob, lien https (MP4, WebM, GIF…) ou YouTube / Vimeo. */
+export const mediaUrlSchema = z
+  .string()
+  .max(500)
+  .refine((v) => /^\/api\/media\/[a-z0-9]+$/i.test(v) || /^https:\/\/[^\s"'<>]+$/i.test(v), "URL de média invalide");
+
+export const VIDEO_FITS = ["cover", "contain"] as const;
 
 export const blockSchema = z.object({
   type: z.enum(BLOCK_TYPES),
@@ -48,7 +56,10 @@ export const showConfigSchema = z.object({
     text: hexColor,
     background: hexColor,
   }),
-  backgroundImage: z.string().max(300).nullable(),
+  /** Fond d'écran : image ou GIF. */
+  backgroundImage: mediaUrlSchema.nullable(),
+  /** Fond d'écran vidéo (prioritaire sur l'image), toujours muet et en boucle. */
+  backgroundVideo: mediaUrlSchema.nullable(),
   backgroundDim: z.number().min(0).max(0.9),
   animation: z.object({
     donation: z.enum(DONATION_ANIMATIONS),
@@ -69,6 +80,13 @@ export const showConfigSchema = z.object({
     count: z.number().int().min(1).max(16),
     columns: z.union([z.literal(1), z.literal(2)]),
   }),
+  /** Bloc vidéo (MP4/WebM importé, lien direct, YouTube ou Vimeo). */
+  video: z.object({
+    url: mediaUrlSchema.nullable(),
+    muted: z.boolean(),
+    loop: z.boolean(),
+    fit: z.enum(VIDEO_FITS),
+  }),
   blocks: z.array(blockSchema).min(1).max(BLOCK_TYPES.length),
 });
 export type ShowConfig = z.infer<typeof showConfigSchema>;
@@ -81,6 +99,7 @@ export const DEFAULT_BLOCKS: ShowBlock[] = [
   { type: "goal", x: 37, y: 33, w: 44.5, h: 10, visible: true, align: "center", fontScale: 1 },
   { type: "donations", x: 37, y: 46.5, w: 59.8, h: 48, visible: true, align: "start", fontScale: 1 },
   { type: "qrcode", x: 84, y: 5, w: 12.8, h: 37, visible: true, align: "center", fontScale: 1 },
+  { type: "video", x: 3.2, y: 49, w: 30, h: 24, visible: false, align: "center", fontScale: 1 },
 ];
 
 export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
@@ -89,6 +108,7 @@ export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
     theme,
     colors: { accent: null, text: null, background: null },
     backgroundImage: null,
+    backgroundVideo: null,
     backgroundDim: 0.45,
     animation: {
       donation: "slide",
@@ -99,6 +119,7 @@ export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
     },
     texts: { subtitle: "", message: "", totalLabel: "", donationsLabel: "", qrLabel: "" },
     donations: { count: 8, columns: 2 },
+    video: { url: null, muted: true, loop: true, fit: "cover" },
     blocks: DEFAULT_BLOCKS.map((b) => ({ ...b })),
   };
 }
@@ -118,11 +139,13 @@ export function normalizeShowConfig(input: unknown): ShowConfig {
     ...base,
     theme,
     colors: { ...base.colors, ...(raw.colors ?? {}) },
-    backgroundImage: typeof raw.backgroundImage === "string" ? raw.backgroundImage : null,
+    backgroundImage: typeof raw.backgroundImage === "string" && mediaUrlSchema.safeParse(raw.backgroundImage).success ? raw.backgroundImage : null,
+    backgroundVideo: typeof raw.backgroundVideo === "string" && mediaUrlSchema.safeParse(raw.backgroundVideo).success ? raw.backgroundVideo : null,
     backgroundDim: typeof raw.backgroundDim === "number" ? raw.backgroundDim : base.backgroundDim,
     animation: { ...base.animation, ...(raw.animation ?? {}) },
     texts: { ...base.texts, ...(raw.texts ?? {}) },
     donations: { ...base.donations, ...(raw.donations ?? {}) },
+    video: { ...base.video, ...(raw.video ?? {}) },
     blocks: [],
   };
 

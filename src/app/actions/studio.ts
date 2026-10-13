@@ -18,16 +18,12 @@ function fail(error: unknown): { ok: false; error: string } {
   return { ok: false, error: "SERVER" };
 }
 
-function assertMediaUrl(url: string | null) {
-  if (url && !/^\/api\/media\/[a-z0-9]+$/i.test(url)) throw new z.ZodError([]);
-}
 
 /** Enregistre le design du show et le diffuse immédiatement sur les écrans connectés. */
 export async function saveLayoutAction(eventId: string, rawConfig: unknown): Promise<Result<{ version: number }>> {
   try {
     const { user, event } = await assertEventAccess(eventId, "event.studio");
     const config = showConfigSchema.parse(normalizeShowConfig(rawConfig));
-    assertMediaUrl(config.backgroundImage);
     const version = await prisma.$transaction(async (tx) => {
       await lockEvent(tx, eventId);
       const layout = await tx.showLayout.upsert({

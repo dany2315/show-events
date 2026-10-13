@@ -115,6 +115,56 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
       .toBe("#a6e35f");
   });
 
+  test("studio : mise en page intelligente, fond vidéo et bloc vidéo diffusés sur l'écran", async ({ page }) => {
+    const s = state();
+    await login(page, s.adminEmail, s.password);
+    await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/studio`);
+
+    // Fond d'écran vidéo (lien YouTube)
+    await page.getByRole("tab", { name: "Style" }).click();
+    await page.getByRole("button", { name: "Vidéo", exact: true }).click();
+    await page.getByPlaceholder("Lien YouTube, Vimeo ou fichier MP4").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    await page.getByRole("button", { name: "Appliquer" }).click();
+    await expect(page.getByText("YouTube · dQw4w9WgXcQ")).toBeVisible();
+
+    // Bloc vidéo + disposition automatique « Vidéo à la une »
+    await page.getByRole("tab", { name: "Éléments" }).click();
+    await page.getByRole("button", { name: /^Vidéo Clip, film ou direct/ }).click();
+    const props = page.locator("aside").last();
+    await props.getByPlaceholder("Lien YouTube, Vimeo ou fichier MP4").fill("https://vimeo.com/123456789");
+    await props.getByRole("button", { name: "Appliquer" }).click();
+    await page.getByRole("button", { name: "Disposition automatique" }).click();
+    await expect(page.getByText("Mise en page « Vidéo à la une » appliquée")).toBeVisible();
+    await expect(page.getByText("Aucun chevauchement")).toBeVisible();
+
+    await page.getByRole("button", { name: /Enregistrer le design/ }).click();
+    await expect(page.getByText("Design enregistré et diffusé sur les écrans")).toBeVisible();
+    await expect(screen.locator('iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]')).toHaveCount(1, { timeout: 20_000 });
+    await expect(screen.locator('iframe[src*="player.vimeo.com/video/123456789"]')).toHaveCount(1);
+  });
+
+  test("médias : import d'une vidéo MP4 et lecture par plages (Safari / iPhone)", async ({ page }) => {
+    const s = state();
+    await login(page, s.adminEmail, s.password);
+    // En-tête MP4 minimal (boîte « ftyp ») suivi de données.
+    const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypisom"), Buffer.alloc(2048, 7)]);
+    const upload = await page.request.post("/api/media", {
+      multipart: { organizationId: s.orgId, file: { name: "clip.mp4", mimeType: "video/mp4", buffer: mp4 } },
+    });
+    expect(upload.status()).toBe(201);
+    const { url } = await upload.json();
+    const partial = await page.request.get(url, { headers: { range: "bytes=0-11" } });
+    expect(partial.status()).toBe(206);
+    expect(partial.headers()["content-range"]).toBe(`bytes 0-11/${mp4.length}`);
+    expect(partial.headers()["content-type"]).toBe("video/mp4");
+    expect((await partial.body()).toString("latin1", 4, 8)).toBe("ftyp");
+    // Un faux fichier vidéo est refusé
+    const fake = await page.request.post("/api/media", {
+      multipart: { organizationId: s.orgId, file: { name: "x.mp4", mimeType: "video/mp4", buffer: Buffer.from("<script>alert(1)</script>") } },
+    });
+    expect(fake.status()).toBe(400);
+  });
+
   test("fiche événement : sous-totaux réels / fictifs et export CSV", async ({ page }) => {
     const s = state();
     await login(page, s.adminEmail, s.password);

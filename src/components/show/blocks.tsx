@@ -10,6 +10,9 @@ import type { LiveEventInfo, PublicDonation } from "@/lib/live/types";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { fmt } from "@/i18n/format";
 import { AnimatedAmount } from "./animated-amount";
+import { VideoMedia } from "./video-media";
+import { dictionaries } from "@/i18n/dictionaries";
+import { parseVideoSource } from "@/lib/show/media";
 import { fitFontSize, initials, typo } from "./fit";
 
 export type BlockContext = {
@@ -46,6 +49,8 @@ export function ShowBlockContent(props: BlockProps) {
       return <MessageBlock {...props} />;
     case "qrcode":
       return <QrBlock {...props} />;
+    case "video":
+      return <VideoBlock {...props} />;
   }
 }
 
@@ -316,6 +321,31 @@ function QrBlock({ block, width, height, ctx }: BlockProps) {
           {shortUrl}
         </div>
       </div>
+    </div>
+  );
+}
+
+function VideoBlock({ width, height, ctx }: BlockProps) {
+  const video = ctx.config.video;
+  const valid = Boolean(parseVideoSource(video.url));
+  if (!valid) {
+    if (!ctx.editing) return null;
+    return (
+      <div
+        className="flex size-full flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed text-center"
+        style={{ borderColor: "var(--show-panel-border)", color: "var(--show-muted)", fontSize: Math.max(18, height * 0.07) }}
+      >
+        <svg viewBox="0 0 24 24" width={Math.min(width, height) * 0.22} height={Math.min(width, height) * 0.22} fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+          <rect x="2" y="5" width="15" height="14" rx="2.5" />
+          <path d="m17 10 5-3v10l-5-3" />
+        </svg>
+        <span className="max-w-[80%]">{dictionaries[ctx.locale].studio.videoEmpty}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="show-panel size-full overflow-hidden rounded-[28px]" style={{ padding: 0 }}>
+      <VideoMedia url={video.url} muted={video.muted} loop={video.loop} fit={video.fit} box={{ width, height }} />
     </div>
   );
 }

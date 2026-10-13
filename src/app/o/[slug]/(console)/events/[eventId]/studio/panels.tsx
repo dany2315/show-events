@@ -22,6 +22,12 @@ import {
   List,
   Coins,
   RotateCcw,
+  Film,
+  Link2,
+  Sparkles,
+  Wand2,
+  TriangleAlert,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -45,7 +51,10 @@ import {
 import { THEMES } from "@/lib/show/themes";
 import type { AppLocale } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { uploadImage } from "@/lib/upload-client";
+import { formatBytes, uploadImage, UploadTooLargeError } from "@/lib/upload-client";
+import { isImageUrl, parseVideoSource } from "@/lib/show/media";
+import { applyPreset, autoLayout, findOverlaps, fixOverlaps, LAYOUT_PRESETS, type LayoutPreset } from "@/lib/show/smart-layout";
+import { fmt as fmtText } from "@/i18n/format";
 
 export type Update = (fn: (c: ShowConfig) => ShowConfig, coalesceKey?: string) => void;
 
@@ -57,6 +66,7 @@ export const BLOCK_ICONS: Record<BlockType, React.ComponentType<{ className?: st
   donations: List,
   message: Text,
   qrcode: QrCode,
+  video: Film,
 };
 
 function Section({ title, children, help }: { title: string; children: React.ReactNode; help?: string }) {
@@ -71,7 +81,19 @@ function Section({ title, children, help }: { title: string; children: React.Rea
 
 /* ─── Éléments & calques ─────────────────────────────────────────────── */
 
-export function ElementsPanel({ config, update, selected, onSelect }: { config: ShowConfig; update: Update; selected: BlockType | null; onSelect: (b: BlockType) => void }) {
+export function ElementsPanel({
+  config,
+  update,
+  selected,
+  onSelect,
+  rtl,
+}: {
+  config: ShowConfig;
+  update: Update;
+  selected: BlockType | null;
+  onSelect: (b: BlockType) => void;
+  rtl: boolean;
+}) {
   const { t } = useI18n();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   // Affichage : premier plan en haut de la liste.
@@ -89,6 +111,33 @@ export function ElementsPanel({ config, update, selected, onSelect }: { config: 
   }
 
   return (
+    <>
+    <LayoutSection config={config} update={update} rtl={rtl} />
+    <Section title={t.studio.donationsQuick}>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span>{t.studio.donationsColumns}</span>
+        <div className="inline-flex rounded-xl bg-muted p-1">
+          {([1, 2] as const).map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => update((c) => ({ ...c, donations: { ...c.donations, columns: n } }))}
+              className={cn("rounded-lg px-3 py-1 text-sm", config.donations.columns === n ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+              aria-pressed={config.donations.columns === n}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between text-sm">
+          <span>{t.studio.donationsCount}</span>
+          <span className="tabular text-muted-foreground">{config.donations.count}</span>
+        </div>
+        <Slider value={[config.donations.count]} min={1} max={16} step={1} onValueChange={([v]) => update((c) => ({ ...c, donations: { ...c.donations, count: v } }), "dcount")} />
+      </div>
+    </Section>
     <Section title={t.studio.layers} help={t.studio.layersHelp}>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={layers.map((b) => b.type)} strategy={verticalListSortingStrategy}>
@@ -100,6 +149,88 @@ export function ElementsPanel({ config, update, selected, onSelect }: { config: 
         </SortableContext>
       </DndContext>
     </Section>
+    </>
+  );
+}
+
+/* ─── Mise en page intelligente ───────────────────────────────────────── */
+
+function LayoutSection({ config, update, rtl }: { config: ShowConfig; update: Update; rtl: boolean }) {
+  const { t } = useI18n();
+  const overlaps = findOverlaps(config.blocks);
+  const label = (p: LayoutPreset) => t.studio[`preset_${p}`];
+  return (
+    <Section title={t.studio.layout} help={t.studio.layoutHelp}>
+      <Button
+        type="button"
+        className="w-full"
+        onClick={() => {
+          let chosen: LayoutPreset = "classic";
+          update((c) => {
+            const r = autoLayout(c, rtl);
+            chosen = r.preset;
+            return r.config;
+          });
+          window.setTimeout(() => toast.success(fmtText(t.studio.autoLayoutDone, { name: label(chosen) })), 0);
+        }}
+      >
+        <Wand2 className="size-4" />
+        {t.studio.autoLayout}
+      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        {LAYOUT_PRESETS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => update((c) => applyPreset(c, p, rtl))}
+            className="overflow-hidden rounded-xl border text-start transition-colors hover:border-gold/60"
+          >
+            <PresetThumb preset={p} config={config} rtl={rtl} />
+            <span className="block truncate px-2 py-1.5 text-xs font-medium">{label(p)}</span>
+          </button>
+        ))}
+      </div>
+      {overlaps.length > 0 ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+          <span className="flex items-center gap-1.5">
+            <TriangleAlert className="size-3.5" />
+            {fmtText(t.studio.overlapsCount, { count: overlaps.length })}
+          </span>
+          <Button
+            type="button"
+            size="xs"
+            variant="secondary"
+            onClick={() => {
+              update((c) => fixOverlaps(c));
+              toast.success(t.studio.overlapsFixed);
+            }}
+          >
+            <Sparkles className="size-3" />
+            {t.studio.fixOverlaps}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CheckCircle2 className="size-3.5 text-success" />
+          {t.studio.overlapsNone}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function PresetThumb({ preset, config, rtl }: { preset: LayoutPreset; config: ShowConfig; rtl: boolean }) {
+  const blocks = applyPreset(config, preset, rtl).blocks.filter((b) => b.visible);
+  return (
+    <span className="relative block aspect-video bg-muted/60">
+      {blocks.map((b) => (
+        <span
+          key={b.type}
+          className={cn("absolute rounded-[2px]", b.type === "total" ? "bg-gold/80" : b.type === "video" ? "bg-sky-400/60" : "bg-foreground/25")}
+          style={{ left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%` }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -147,12 +278,14 @@ export function StylePanel({
   organizationId,
   logoUrl,
   onLogoChange,
+  blobEnabled,
 }: {
   config: ShowConfig;
   update: Update;
   organizationId: string;
   logoUrl: string | null;
   onLogoChange: (url: string | null) => Promise<void>;
+  blobEnabled: boolean;
 }) {
   const { t, locale } = useI18n();
   const theme = THEMES[config.theme];
@@ -227,30 +360,157 @@ export function StylePanel({
           onChange={onLogoChange}
           label={t.studio.changeLogo}
           contain
+          blobEnabled={blobEnabled}
         />
       </Section>
 
-      <Section title={t.studio.backgroundImage} help={t.studio.backgroundImageHelp}>
-        <ImagePicker
-          organizationId={organizationId}
-          value={config.backgroundImage}
-          onChange={async (url) => update((c) => ({ ...c, backgroundImage: url }))}
-          label={t.studio.upload}
-        />
-        {config.backgroundImage && (
-          <div className="grid gap-2">
-            <Label className="text-sm font-normal">{t.studio.backgroundDim}</Label>
-            <Slider
-              value={[Math.round(config.backgroundDim * 100)]}
-              min={0}
-              max={90}
-              step={5}
-              onValueChange={([v]) => update((c) => ({ ...c, backgroundDim: v / 100 }), "dim")}
-            />
-          </div>
-        )}
-      </Section>
+      <BackgroundSection config={config} update={update} organizationId={organizationId} blobEnabled={blobEnabled} />
     </>
+  );
+}
+
+function BackgroundSection({ config, update, organizationId, blobEnabled }: { config: ShowConfig; update: Update; organizationId: string; blobEnabled: boolean }) {
+  const { t } = useI18n();
+  const [tab, setTab] = useState<"image" | "video">(config.backgroundVideo ? "video" : "image");
+  const hasBackground = Boolean(config.backgroundVideo || config.backgroundImage);
+  return (
+    <Section title={t.studio.background} help={t.studio.backgroundHelp}>
+      <div className="inline-flex rounded-xl bg-muted p-1">
+        {(["image", "video"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTab(k)}
+            className={cn("rounded-lg px-3 py-1.5 text-xs", tab === k ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+          >
+            {k === "image" ? t.studio.bgImage : t.studio.bgVideo}
+          </button>
+        ))}
+      </div>
+      {tab === "image" ? (
+        <>
+          <ImagePicker
+            organizationId={organizationId}
+            value={config.backgroundImage}
+            onChange={async (url) => update((c) => ({ ...c, backgroundImage: url, backgroundVideo: url ? null : c.backgroundVideo }))}
+            label={t.studio.upload}
+            blobEnabled={blobEnabled}
+          />
+          <UrlField
+            placeholder="https://…/fond.gif"
+            validate={(v) => isImageUrl(v)}
+            onApply={(url) => update((c) => ({ ...c, backgroundImage: url, backgroundVideo: null }))}
+          />
+        </>
+      ) : (
+        <VideoPicker
+          organizationId={organizationId}
+          blobEnabled={blobEnabled}
+          value={config.backgroundVideo}
+          onChange={(url) => update((c) => ({ ...c, backgroundVideo: url }))}
+        />
+      )}
+      {hasBackground && (
+        <div className="grid gap-2">
+          <Label className="text-sm font-normal">{t.studio.backgroundDim}</Label>
+          <Slider value={[Math.round(config.backgroundDim * 100)]} min={0} max={90} step={5} onValueChange={([v]) => update((c) => ({ ...c, backgroundDim: v / 100 }), "dim")} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function UrlField({ placeholder, validate, onApply }: { placeholder: string; validate: (v: string) => boolean; onApply: (url: string) => void }) {
+  const { t } = useI18n();
+  const [value, setValue] = useState("");
+  return (
+    <form
+      className="flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const url = value.trim();
+        if (!validate(url)) {
+          toast.error(t.studio.videoUnsupported);
+          return;
+        }
+        onApply(url);
+        setValue("");
+      }}
+    >
+      <div className="relative min-w-0 flex-1">
+        <Link2 className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder={placeholder} className="h-8 ps-8 text-xs" dir="ltr" />
+      </div>
+      <Button type="submit" size="sm" variant="secondary" disabled={!value.trim()}>
+        {t.studio.apply}
+      </Button>
+    </form>
+  );
+}
+
+function VideoPicker({
+  organizationId,
+  blobEnabled,
+  value,
+  onChange,
+}: {
+  organizationId: string;
+  blobEnabled: boolean;
+  value: string | null;
+  onChange: (url: string | null) => void;
+}) {
+  const { t } = useI18n();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const source = parseVideoSource(value);
+  return (
+    <div className="grid gap-2.5">
+      <p className="text-xs text-muted-foreground">{t.studio.videoUrlHelp}</p>
+      <UrlField placeholder={t.studio.videoUrlPlaceholder} validate={(v) => Boolean(parseVideoSource(v))} onApply={onChange} />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={input}
+          type="file"
+          accept="video/mp4,video/webm"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            setBusy(true);
+            try {
+              onChange(await uploadImage(organizationId, file, { blobEnabled }));
+            } catch (error) {
+              toast.error(
+                error instanceof UploadTooLargeError
+                  ? fmtText(t.studio.videoTooBig, { max: formatBytes(error.maxBytes) })
+                  : error instanceof Error && error.message !== "upload"
+                    ? error.message
+                    : t.common.errorGeneric,
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+        <Button type="button" size="sm" variant="secondary" onClick={() => input.current?.click()} disabled={busy}>
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Film className="size-3.5" />}
+          {busy ? t.studio.uploading : t.studio.uploadVideo}
+        </Button>
+        {value && (
+          <Button type="button" size="sm" variant="ghost" onClick={() => onChange(null)} disabled={busy}>
+            <Trash2 className="size-3.5" />
+            {t.studio.removeVideo}
+          </Button>
+        )}
+      </div>
+      {source && (
+        <div className="flex items-center gap-2 truncate rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground" dir="ltr">
+          <Film className="size-3.5 shrink-0" />
+          <span className="truncate">{source.kind === "file" ? value : `${source.kind === "youtube" ? "YouTube" : "Vimeo"} · ${source.id}`}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -264,12 +524,14 @@ function ImagePicker({
   onChange,
   label,
   contain,
+  blobEnabled = false,
 }: {
   organizationId: string;
   value: string | null;
   onChange: (url: string | null) => Promise<void> | void;
   label: string;
   contain?: boolean;
+  blobEnabled?: boolean;
 }) {
   const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
@@ -296,9 +558,15 @@ function ImagePicker({
             if (!file) return;
             setBusy(true);
             try {
-              await onChange(await uploadImage(organizationId, file));
+              await onChange(await uploadImage(organizationId, file, { blobEnabled }));
             } catch (error) {
-              toast.error(error instanceof Error && error.message !== "upload" ? error.message : t.common.errorGeneric);
+              toast.error(
+                error instanceof UploadTooLargeError
+                  ? fmtText(t.studio.videoTooBig, { max: formatBytes(error.maxBytes) })
+                  : error instanceof Error && error.message !== "upload"
+                    ? error.message
+                    : t.common.errorGeneric,
+              );
             } finally {
               setBusy(false);
             }
@@ -425,7 +693,19 @@ export function TextsPanel({ config, update, eventLocale }: { config: ShowConfig
 
 /* ─── Propriétés du bloc sélectionné ─────────────────────────────────── */
 
-export function PropertiesPanel({ config, update, selected }: { config: ShowConfig; update: Update; selected: BlockType | null }) {
+export function PropertiesPanel({
+  config,
+  update,
+  selected,
+  organizationId,
+  blobEnabled,
+}: {
+  config: ShowConfig;
+  update: Update;
+  selected: BlockType | null;
+  organizationId: string;
+  blobEnabled: boolean;
+}) {
   const { t } = useI18n();
   const block = config.blocks.find((b) => b.type === selected);
   if (!block) {
@@ -501,6 +781,43 @@ export function PropertiesPanel({ config, update, selected }: { config: ShowConf
                 </button>
               );
             })}
+          </div>
+        </Section>
+      )}
+
+      {block.type === "video" && (
+        <Section title={t.studio.videoSource}>
+          <VideoPicker
+            organizationId={organizationId}
+            blobEnabled={blobEnabled}
+            value={config.video.url}
+            onChange={(url) => update((c) => ({ ...c, video: { ...c.video, url }, blocks: url ? c.blocks.map((b) => (b.type === "video" ? { ...b, visible: true } : b)) : c.blocks }))}
+          />
+          <label className="flex items-start justify-between gap-3">
+            <span>
+              <span className="block text-sm">{t.studio.videoSound}</span>
+              <span className="block text-xs text-muted-foreground">{t.studio.videoSoundHelp}</span>
+            </span>
+            <Switch checked={!config.video.muted} onCheckedChange={(v) => update((c) => ({ ...c, video: { ...c.video, muted: !v } }))} />
+          </label>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            {t.studio.videoLoop}
+            <Switch checked={config.video.loop} onCheckedChange={(v) => update((c) => ({ ...c, video: { ...c.video, loop: v } }))} />
+          </label>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span>{t.studio.videoFit}</span>
+            <div className="inline-flex rounded-xl bg-muted p-1">
+              {(["cover", "contain"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => update((c) => ({ ...c, video: { ...c.video, fit: f } }))}
+                  className={cn("rounded-lg px-3 py-1 text-xs", config.video.fit === f ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+                >
+                  {f === "cover" ? t.studio.fitCover : t.studio.fitContain}
+                </button>
+              ))}
+            </div>
           </div>
         </Section>
       )}
