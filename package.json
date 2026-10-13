@@ -62,6 +62,12 @@
     "vitest": "^5.0.4"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": "24.x"
+  },
+  "allowScripts": {
+    "@prisma/engines": true,
+    "prisma": true,
+    "esbuild": true,
+    "unrs-resolver": true
   }
 }
