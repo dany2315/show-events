@@ -1,8 +1,13 @@
 import { z } from "zod";
+import { ALT_FORMAT_IDS, getFormat, type AltFormatId, type FormatId } from "./formats";
 
 /** Surface de référence du show (cahier des charges : 1920 × 1080, coordonnées proportionnelles). */
 export const STAGE_WIDTH = 1920;
 export const STAGE_HEIGHT = 1080;
+
+/** Dimensions d'une surface du show (une par format d'écran, voir `formats.ts`). */
+export type StageSize = { width: number; height: number };
+export const REFERENCE_STAGE: StageSize = { width: STAGE_WIDTH, height: STAGE_HEIGHT };
 
 export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
@@ -66,6 +71,17 @@ export const blockSchema = z.object({
 });
 export type ShowBlock = z.infer<typeof blockSchema>;
 
+const blocksSchema = z.array(blockSchema).min(1).max(BLOCK_TYPES.length);
+
+/**
+ * Mises en page des formats d'écran secondaires (16:10, 4:3, 21:9, 32:9, 9:16).
+ * Chaque entrée est facultative : un format absent est dérivé automatiquement du 16:9
+ * (`formatBlocks` dans `smart-layout.ts`). Les couleurs, l'arrière-plan, les textes,
+ * les animations et la liste des dons restent communs à tous les formats.
+ */
+export const formatLayoutsSchema = z.partialRecord(z.enum(ALT_FORMAT_IDS), blocksSchema);
+export type FormatLayouts = z.infer<typeof formatLayoutsSchema>;
+
 export const showConfigSchema = z.object({
   version: z.literal(1),
   /** Arrière-plan choisi dans la bibliothèque de la plateforme (champ historique « theme »). */
@@ -94,7 +110,10 @@ export const showConfigSchema = z.object({
     count: z.number().int().min(1).max(16),
     columns: z.union([z.literal(1), z.literal(2)]),
   }),
-  blocks: z.array(blockSchema).min(1).max(BLOCK_TYPES.length),
+  /** Mise en page principale, au format de référence 16:9 (champ historique). */
+  blocks: blocksSchema,
+  /** Mises en page personnalisées des autres formats d'écran (absentes des anciennes configurations). */
+  layouts: formatLayoutsSchema.optional(),
 });
 export type ShowConfig = z.infer<typeof showConfigSchema>;
 
@@ -162,8 +181,64 @@ export function normalizeShowConfig(input: unknown): ShowConfig {
   }
   merged.blocks = blocks;
 
+  const layouts = normalizeFormatLayouts(raw.layouts, blocks);
+  if (layouts) merged.layouts = layouts;
+
   const result = showConfigSchema.safeParse(merged);
   return result.success ? result.data : base;
+}
+
+/**
+ * Mises en page des formats secondaires : formats inconnus et blocs invalides retirés,
+ * doublons ignorés, blocs maintenus dans la surface. Un type de bloc absent (par exemple
+ * ajouté après l'enregistrement) reprend la position du 16:9, masqué.
+ * Renvoie `undefined` quand aucun format n'est personnalisé (anciennes configurations).
+ */
+function normalizeFormatLayouts(input: unknown, main: ShowBlock[]): FormatLayouts | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const raw = input as Record<string, unknown>;
+  const layouts: FormatLayouts = {};
+  for (const id of ALT_FORMAT_IDS) {
+    const list = raw[id];
+    if (!Array.isArray(list)) continue;
+    const seen = new Set<BlockType>();
+    const blocks: ShowBlock[] = [];
+    for (const candidate of list) {
+      const parsed = blockSchema.safeParse(candidate);
+      if (!parsed.success || seen.has(parsed.data.type)) continue;
+      seen.add(parsed.data.type);
+      blocks.push(clampBlock(parsed.data));
+    }
+    if (blocks.length === 0) continue;
+    for (const ref of main) {
+      if (!seen.has(ref.type)) blocks.push({ ...ref, visible: false });
+    }
+    layouts[id] = blocks;
+  }
+  return Object.keys(layouts).length > 0 ? layouts : undefined;
+}
+
+/** Mise en page personnalisée d'un format secondaire, ou `null` si elle est dérivée du 16:9. */
+export function customFormatBlocks(config: Pick<ShowConfig, "layouts">, format: FormatId): ShowBlock[] | null {
+  if (format === "16:9") return null;
+  return config.layouts?.[format as AltFormatId] ?? null;
+}
+
+/** Enregistre la mise en page d'un format (16:9 : mise en page principale). */
+export function withFormatBlocks(config: ShowConfig, format: FormatId, blocks: ShowBlock[]): ShowConfig {
+  if (format === "16:9") return { ...config, blocks };
+  return { ...config, layouts: { ...config.layouts, [format]: blocks } };
+}
+
+/** Retire la mise en page personnalisée d'un format : elle redevient dérivée du 16:9. */
+export function withoutFormatBlocks(config: ShowConfig, format: FormatId): ShowConfig {
+  if (format === "16:9" || !config.layouts?.[format as AltFormatId]) return config;
+  const rest: FormatLayouts = { ...config.layouts };
+  delete rest[format as AltFormatId];
+  const next: ShowConfig = { ...config };
+  if (Object.keys(rest).length > 0) next.layouts = rest;
+  else delete next.layouts;
+  return next;
 }
 
 function pickColor(colors: unknown, key: "accent" | "text"): string | null {
@@ -181,28 +256,34 @@ export function clampBlock(block: ShowBlock): ShowBlock {
   return { ...block, x: round(x), y: round(y), w: round(w), h: round(h) };
 }
 
-/** Conversion % → pixels de la surface de référence. */
-export function blockToPixels(block: Pick<ShowBlock, "x" | "y" | "w" | "h">) {
+/** Dimensions de la surface d'un format d'écran. */
+export function stageSize(format: FormatId | null | undefined): StageSize {
+  const f = getFormat(format);
+  return { width: f.width, height: f.height };
+}
+
+/** Conversion % → pixels de la surface (1920 × 1080 par défaut). */
+export function blockToPixels(block: Pick<ShowBlock, "x" | "y" | "w" | "h">, stage: StageSize = REFERENCE_STAGE) {
   return {
-    left: (block.x / 100) * STAGE_WIDTH,
-    top: (block.y / 100) * STAGE_HEIGHT,
-    width: (block.w / 100) * STAGE_WIDTH,
-    height: (block.h / 100) * STAGE_HEIGHT,
+    left: (block.x / 100) * stage.width,
+    top: (block.y / 100) * stage.height,
+    width: (block.w / 100) * stage.width,
+    height: (block.h / 100) * stage.height,
   };
 }
 
 /** Conversion pixels → % (pour l'éditeur). */
-export function pixelsToBlock(px: { left: number; top: number; width: number; height: number }) {
+export function pixelsToBlock(px: { left: number; top: number; width: number; height: number }, stage: StageSize = REFERENCE_STAGE) {
   return {
-    x: (px.left / STAGE_WIDTH) * 100,
-    y: (px.top / STAGE_HEIGHT) * 100,
-    w: (px.width / STAGE_WIDTH) * 100,
-    h: (px.height / STAGE_HEIGHT) * 100,
+    x: (px.left / stage.width) * 100,
+    y: (px.top / stage.height) * 100,
+    w: (px.width / stage.width) * 100,
+    h: (px.height / stage.height) * 100,
   };
 }
 
-/** Échelle à appliquer à la surface 1920×1080 pour tenir dans un conteneur (letterbox). */
-export function fitScale(containerWidth: number, containerHeight: number) {
+/** Échelle à appliquer à la surface (1920 × 1080 par défaut) pour tenir dans un conteneur (letterbox). */
+export function fitScale(containerWidth: number, containerHeight: number, stage: StageSize = REFERENCE_STAGE) {
   if (containerWidth <= 0 || containerHeight <= 0) return 0;
-  return Math.min(containerWidth / STAGE_WIDTH, containerHeight / STAGE_HEIGHT);
+  return Math.min(containerWidth / stage.width, containerHeight / stage.height);
 }

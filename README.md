@@ -91,6 +91,25 @@ Les associations n'importent plus leur propre fond : elles choisissent dans une 
 - Chaque arrière-plan fournit sa palette (fond, texte, accent, panneaux, QR code, couleurs de l'ambiance). L'association peut modifier l'accent et le texte des éléments ; le décor garde ses couleurs. La propriété `lockedColors` (désactivée partout) prépare la future règle « couleurs imposées ».
 - Les anciennes configurations (fond image / vidéo, assombrissement, couleur de fond, bloc vidéo) restent lisibles : ces champs sont ignorés à la normalisation.
 
+### Formats d'écran
+
+Le show s'adapte à la forme de l'écran (`src/lib/show/formats.ts`). Chaque format a sa propre surface (rendue puis mise à l'échelle, letterbox minimal) et sa propre mise en page ; **les couleurs, l'arrière-plan, les textes, les animations et la liste des dons sont communs** à tous les formats.
+
+| Format | Surface | Usage typique | Mise en page dérivée du 16:9 |
+| --- | --- | --- | --- |
+| 16:9 | 1920 × 1080 | écran standard, Full HD, 4K | **mise en page principale** (référence) |
+| 16:10 | 1920 × 1200 | projecteur WUXGA, écran d'ordinateur | reprise en % |
+| 4:3 | 1440 × 1080 | projecteur classique | reprise en % |
+| 21:9 | 2520 × 1080 | écran ultra-large | 3 colonnes : identité, total + objectif + dons, QR code |
+| 32:9 | 3840 × 1080 | double écran, bandeau LED | 4 colonnes : identité, total + objectif, dons, QR code |
+| 9:16 | 1080 × 1920 | totem, écran vertical | empilement : logo, titre, total, objectif, dons, texte + QR code en bas |
+
+- **Modèle de données** : `blocks` reste la mise en page 16:9 (rétrocompatible) ; `layouts` (facultatif) contient les mises en page personnalisées des autres formats (`{ "9:16": [...blocs], "21:9": [...] }`). Un format absent est **dérivé automatiquement** du 16:9 (`formatBlocks` / `deriveFormatBlocks` dans `smart-layout.ts`) : il suit la mise en page proposée correspondante (Classique, Total en vedette, Donateurs à l'honneur, Minimaliste ; sinon la disposition automatique), conserve la visibilité, la taille du texte et l'ordre des calques, se retourne pour l'hébreu, ne laisse pas de place à un bloc « Texte » vide et ne crée aucun chevauchement (testé pour chaque format et chaque mise en page).
+- **Écran géant** : `/screen/<jeton>` choisit le format le plus proche de la fenêtre (rapports comparés en logarithme) et se recalcule au redimensionnement ou à la rotation sans recharger ni perdre l'état du direct. Le paramètre **`?format=`** impose un format : `16:9`, `16:10`, `4:3`, `21:9`, `32:9`, `9:16` (aussi `9x16`, `9-16`) ou un alias (`portrait`, `ultrawide`, `superwide`, `projecteur`…). Exemple : `/screen/<jeton>?format=portrait`.
+- **Studio** : un sélecteur de format (au-dessus de l'aperçu) donne au canevas les proportions du format et fait éditer sa mise en page (déplacement, magnétisme, calques, mises en page intelligentes, propriétés, annuler / rétablir). Un indicateur distingue la mise en page principale, une mise en page « adaptée automatiquement » et une mise en page « personnalisée » (point doré dans le sélecteur) ; « Réinitialiser depuis 16:9 » revient à l'adaptation automatique ; « Ouvrir l'écran en … » ouvre l'écran avec `?format=`.
+- **Arrière-plans** : chaque décor SVG est composé aux dimensions du format (rideaux sur les côtés, remparts et collines en bas, cadres au contour, frises sur toute la largeur), sans déformation ni recadrage ; le dessin 16:9 est identique à l'original. L'ambiance animée couvre toute la scène, avec les mêmes limites (20 éléments, `transform` / `opacity`, coupée en `lowPower`).
+- Les aperçus (Régie, page d'accueil, galerie de modèles, vignettes) restent en 16:9.
+
 ## Démarrage
 
 Prérequis : Node 20.19+ (testé avec Node 24), une base Neon.

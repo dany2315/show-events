@@ -383,9 +383,12 @@ export function getBackground(id: string | null | undefined): BackgroundDefiniti
   return BACKGROUNDS[id as BackgroundId] ?? BACKGROUNDS.gala;
 }
 
-/** Valeur CSS `background` du décor de l'arrière-plan (dégradés et SVG inline). */
-export function backgroundScene(id: BackgroundId): string {
-  return sceneBackground(getBackground(id).id);
+/**
+ * Valeur CSS `background` du décor de l'arrière-plan (dégradés et SVG inline), composée aux
+ * dimensions de la surface du format d'écran (1920 × 1080 par défaut).
+ */
+export function backgroundScene(id: BackgroundId, size?: { width: number; height: number }): string {
+  return sceneBackground(getBackground(id).id, size);
 }
 
 /** Variables CSS que fournit chaque arrière-plan au show. */

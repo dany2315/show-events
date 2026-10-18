@@ -169,16 +169,18 @@ export function GoalFigures({
 }
 
 const DonationsBlock = memo(function DonationsBlock({ block, width, height, ctx }: BlockProps) {
-  const { count, columns } = ctx.config.donations;
+  const { count } = ctx.config.donations;
   const label = ctx.config.texts.donationsLabel || ctx.t.donationsLabel;
   const list = ctx.donations.slice(0, count);
-  const rowsPerCol = Math.ceil(count / columns);
   const pad = Math.min(width, height) * 0.06;
   const labelFs = Math.max(14, Math.min(height * 0.06, 34)) * block.fontScale;
   const innerH = height - pad * 2 - labelFs * 1.9;
-  const rowH = innerH / rowsPerCol;
-  const colW = (width - pad * 2 - (columns - 1) * pad) / columns;
-  const fs = Math.min(rowH * 0.42, colW * 0.06) * block.fontScale;
+  const fontFor = (cols: number) => Math.min((innerH / Math.ceil(count / cols)) * 0.42, ((width - pad * 2 - (cols - 1) * pad) / cols) * 0.06);
+  // Deux colonnes demandées dans un bloc étroit (écran portrait…) : une seule colonne si le texte
+  // y est nettement plus grand. Les dispositions 16:9 habituelles gardent leurs deux colonnes.
+  const columns = ctx.config.donations.columns === 2 && fontFor(1) > fontFor(2) * 1.15 ? 1 : ctx.config.donations.columns;
+  const rowsPerCol = Math.ceil(count / columns);
+  const fs = fontFor(columns) * block.fontScale;
   const listRef = useRef<HTMLDivElement>(null);
   const known = useRef<Set<string> | null>(null);
   const style = ctx.config.animation.donation;

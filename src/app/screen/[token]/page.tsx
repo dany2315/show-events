@@ -3,6 +3,7 @@ import { MonitorX } from "lucide-react";
 import { resolveAccessToken, getEventLinks } from "@/lib/event-access";
 import { buildSnapshot } from "@/lib/live/server";
 import { getI18n } from "@/i18n/server";
+import { parseFormatParam } from "@/lib/show/formats";
 import { ScreenClient } from "./screen-client";
 
 export const metadata: Metadata = {
@@ -10,9 +11,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Écran géant : lien de diffusion public, non devinable, à ouvrir en plein écran. */
-export default async function ScreenPage({ params }: PageProps<"/screen/[token]">) {
+/**
+ * Écran géant : lien de diffusion public, non devinable, à ouvrir en plein écran.
+ * Le format d'écran (16:9, 16:10, 4:3, 21:9, 32:9, 9:16) est détecté d'après la taille de la
+ * fenêtre ; `?format=9:16` (ou `portrait`, `21:9`, `ultrawide`…) l'impose.
+ */
+export default async function ScreenPage({ params, searchParams }: PageProps<"/screen/[token]">) {
   const { token } = await params;
+  const forcedFormat = parseFormatParam((await searchParams).format);
   const eventId = await resolveAccessToken(token, "DISPLAY");
   const snapshot = eventId ? await buildSnapshot(eventId, (await getEventLinks(eventId)).formUrl) : null;
 
@@ -27,5 +33,5 @@ export default async function ScreenPage({ params }: PageProps<"/screen/[token]"
     );
   }
 
-  return <ScreenClient token={token} snapshot={snapshot} />;
+  return <ScreenClient token={token} snapshot={snapshot} forcedFormat={forcedFormat} />;
 }

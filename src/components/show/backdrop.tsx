@@ -24,14 +24,17 @@ const QR_PATH = (() => {
   return d;
 })();
 
-/** Décor statique de l'arrière-plan (peint une seule fois, jamais animé). */
-export const Backdrop = memo(function Backdrop({ theme }: { theme: ThemeId }) {
+/**
+ * Décor statique de l'arrière-plan (peint une seule fois, jamais animé), composé aux
+ * dimensions de la surface du format d'écran (1920 × 1080 par défaut).
+ */
+export const Backdrop = memo(function Backdrop({ theme, width = STAGE_WIDTH, height = STAGE_HEIGHT }: { theme: ThemeId; width?: number; height?: number }) {
   return (
     <div
       aria-hidden
       data-backdrop={getBackground(theme).id}
       className="pointer-events-none absolute inset-0"
-      style={{ background: backgroundScene(theme) }}
+      style={{ background: backgroundScene(theme, { width, height }) }}
     />
   );
 });

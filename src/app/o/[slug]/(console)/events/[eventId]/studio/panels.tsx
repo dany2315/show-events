@@ -51,6 +51,7 @@ import type { AppLocale } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { formatBytes, uploadImage, UploadTooLargeError } from "@/lib/upload-client";
 import { applyPreset, autoLayout, findOverlaps, fixOverlaps, LAYOUT_PRESETS, type LayoutPreset } from "@/lib/show/smart-layout";
+import { getFormat, type FormatId } from "@/lib/show/formats";
 import { fmt as fmtText } from "@/i18n/format";
 
 export type Update = (fn: (c: ShowConfig) => ShowConfig, coalesceKey?: string) => void;
@@ -64,6 +65,18 @@ export const BLOCK_ICONS: Record<BlockType, React.ComponentType<{ className?: st
   message: Text,
   qrcode: QrCode,
 };
+
+/** Icône d'un format d'écran : rectangle aux proportions du format (sélecteur du Studio). */
+export function RatioIcon({ width, height, active = false }: { width: number; height: number; active?: boolean }) {
+  const r = width / height;
+  const w = r >= 1 ? Math.min(22, 12 * r) : 16 * r;
+  const h = r >= 1 ? w / r : 16;
+  return (
+    <span aria-hidden className="flex size-[22px] shrink-0 items-center justify-center">
+      <span className={cn("block rounded-[2px] border-[1.5px]", active ? "border-gold" : "border-current")} style={{ width: w, height: h }} />
+    </span>
+  );
+}
 
 function Section({ title, children, help }: { title: string; children: React.ReactNode; help?: string }) {
   return (
@@ -83,12 +96,15 @@ export function ElementsPanel({
   selected,
   onSelect,
   rtl,
+  format,
 }: {
   config: ShowConfig;
   update: Update;
   selected: BlockType | null;
   onSelect: (b: BlockType) => void;
   rtl: boolean;
+  /** Format d'écran édité : mises en page proposées et aperçus à ses proportions. */
+  format: FormatId;
 }) {
   const { t } = useI18n();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
@@ -108,7 +124,7 @@ export function ElementsPanel({
 
   return (
     <>
-    <LayoutSection config={config} update={update} rtl={rtl} />
+    <LayoutSection config={config} update={update} rtl={rtl} format={format} />
     <Section title={t.studio.donationsQuick}>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span>{t.studio.donationsColumns}</span>
@@ -151,7 +167,7 @@ export function ElementsPanel({
 
 /* ─── Mise en page intelligente ───────────────────────────────────────── */
 
-function LayoutSection({ config, update, rtl }: { config: ShowConfig; update: Update; rtl: boolean }) {
+function LayoutSection({ config, update, rtl, format }: { config: ShowConfig; update: Update; rtl: boolean; format: FormatId }) {
   const { t } = useI18n();
   const overlaps = findOverlaps(config.blocks);
   const label = (p: LayoutPreset) => t.studio[`preset_${p}`];
@@ -163,7 +179,7 @@ function LayoutSection({ config, update, rtl }: { config: ShowConfig; update: Up
         onClick={() => {
           let chosen: LayoutPreset = "classic";
           update((c) => {
-            const r = autoLayout(c, rtl);
+            const r = autoLayout(c, rtl, format);
             chosen = r.preset;
             return r.config;
           });
@@ -178,10 +194,10 @@ function LayoutSection({ config, update, rtl }: { config: ShowConfig; update: Up
           <button
             key={p}
             type="button"
-            onClick={() => update((c) => applyPreset(c, p, rtl))}
+            onClick={() => update((c) => applyPreset(c, p, rtl, format))}
             className="overflow-hidden rounded-xl border text-start transition-colors hover:border-gold/60"
           >
-            <PresetThumb preset={p} config={config} rtl={rtl} />
+            <PresetThumb preset={p} config={config} rtl={rtl} format={format} />
             <span className="block truncate px-2 py-1.5 text-xs font-medium">{label(p)}</span>
           </button>
         ))}
@@ -215,10 +231,14 @@ function LayoutSection({ config, update, rtl }: { config: ShowConfig; update: Up
   );
 }
 
-function PresetThumb({ preset, config, rtl }: { preset: LayoutPreset; config: ShowConfig; rtl: boolean }) {
-  const blocks = applyPreset(config, preset, rtl).blocks.filter((b) => b.visible);
+function PresetThumb({ preset, config, rtl, format }: { preset: LayoutPreset; config: ShowConfig; rtl: boolean; format: FormatId }) {
+  const blocks = applyPreset(config, preset, rtl, format).blocks.filter((b) => b.visible);
+  const f = getFormat(format);
   return (
-    <span className="relative block aspect-video bg-muted/60">
+    <span
+      className="relative mx-auto block bg-muted/60"
+      style={f.height > f.width ? { width: (96 * f.width) / f.height, height: 96 } : { aspectRatio: `${f.width} / ${f.height}` }}
+    >
       {blocks.map((b) => (
         <span
           key={b.type}

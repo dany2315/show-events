@@ -1,9 +1,11 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import confetti from "canvas-confetti";
-import { blockToPixels, STAGE_HEIGHT, STAGE_WIDTH, type ShowBlock, type ShowConfig } from "@/lib/show/config";
+import { blockToPixels, stageSize, type ShowBlock, type ShowConfig } from "@/lib/show/config";
+import type { FormatId } from "@/lib/show/formats";
+import { formatBlocks } from "@/lib/show/smart-layout";
 import { getBackground, themeCssVars } from "@/lib/show/themes";
 import { formatMoney, goalProgress } from "@/lib/money";
 import type { LiveControl, LiveEventInfo, PublicDonation } from "@/lib/live/types";
@@ -31,13 +33,20 @@ export type ShowStageProps = {
   wrapBlock?: (block: ShowBlock, content: React.ReactNode) => React.ReactNode;
   /** Appareil peu puissant (téléphone) : effets décoratifs coupés pour préserver la mémoire. */
   lowPower?: boolean;
+  /**
+   * Format d'écran (16:9 par défaut) : dimensions de la surface et mise en page du format
+   * (personnalisée, ou dérivée du 16:9). Changer de format ne remonte pas la scène : l'état
+   * du direct (compteur, confettis, mise en lumière…) est conservé.
+   */
+  format?: FormatId;
   className?: string;
 };
 
 const MILESTONES = [25, 50, 75, 100];
 
 /**
- * Surface du show en 1920 × 1080 (Layout Engine) + effets (Animation Engine).
+ * Surface du show (Layout Engine : 1920 × 1080 en 16:9, ou la surface du format d'écran)
+ * + effets (Animation Engine).
  * L'état vivant (total, dons, pilotage) est fourni par le Live State Engine (useLiveEvent).
  */
 export function ShowStage({
@@ -51,9 +60,15 @@ export function ShowStage({
   editing = false,
   wrapBlock,
   lowPower = false,
+  format = "16:9",
   className,
 }: ShowStageProps) {
   const locale = event.locale;
+  const rtl = locale === "he";
+  const stage = stageSize(format);
+  const blocks = useMemo(() => formatBlocks(config, format, rtl), [config, format, rtl]);
+  // Surimpressions (projecteur, objectif atteint, message) : réduites sur les surfaces étroites.
+  const k = Math.min(1, stage.width / 1600);
   const t = dictionaries[locale].show;
   const theme = getBackground(config.theme);
   const animate = !control.paused;
@@ -195,18 +210,19 @@ export function ShowStage({
   return (
     <div
       ref={stageRef}
-      dir={locale === "he" ? "rtl" : "ltr"}
+      dir={rtl ? "rtl" : "ltr"}
       lang={locale}
+      data-format={format}
       className={`show-root relative overflow-hidden ${lowPower ? "show-lowpower" : ""} ${className ?? ""}`}
-      style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT, ...(cssVars as React.CSSProperties) }}
+      style={{ width: stage.width, height: stage.height, ...(cssVars as React.CSSProperties) }}
     >
-      {/* Arrière-plan de la bibliothèque : décor statique + ambiance animée légère. */}
-      <Backdrop theme={theme.id} />
+      {/* Arrière-plan de la bibliothèque : décor statique (composé pour le format) + ambiance animée légère. */}
+      <Backdrop theme={theme.id} width={stage.width} height={stage.height} />
       <Ambient kind={theme.ambient} enabled={config.animation.ambient && !control.paused && !lowPower} />
 
-      {config.blocks.map((block) => {
+      {blocks.map((block) => {
         if (!block.visible && !wrapBlock) return null;
-        const px = blockToPixels(block);
+        const px = blockToPixels(block, stage);
         const content = <ShowBlockContent block={block} width={px.width} height={px.height} ctx={ctx} />;
         if (wrapBlock) return <Fragment key={block.type}>{wrapBlock(block, content)}</Fragment>;
         return (
@@ -217,16 +233,19 @@ export function ShowStage({
       })}
 
       {/* Mise en lumière plein écran d'une promesse */}
-      {spotlight && <Spotlight key={spotlight.id} donation={spotlight} event={event} label={t.newPromise} />}
+      {spotlight && <Spotlight key={spotlight.id} donation={spotlight} event={event} label={t.newPromise} k={k} />}
 
       {/* Objectif atteint */}
       {goalBanner && (
         <div className="show-spotlight-backdrop pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
-          <div className="show-card-solid animate-in zoom-in-50 fade-in duration-700 rounded-[48px] px-28 py-16 text-center">
-            <div className="show-display show-accent-text font-bold" style={{ fontSize: 150, lineHeight: 1.05 }}>
+          <div
+            className="show-card-solid animate-in zoom-in-50 fade-in duration-700 text-center"
+            style={{ borderRadius: 48 * k, padding: `${64 * k}px ${112 * k}px`, maxWidth: stage.width * 0.92 }}
+          >
+            <div className="show-display show-accent-text font-bold text-balance" style={{ fontSize: 150 * k, lineHeight: 1.05 }}>
               {t.goalReached}
             </div>
-            <div className="tabular mt-6 font-extrabold" style={{ fontSize: 80 }}>
+            <div className="tabular font-extrabold" style={{ fontSize: 80 * k, marginTop: 24 * k }}>
               {formatMoney(total, event.currency, locale)}
             </div>
           </div>
@@ -237,9 +256,10 @@ export function ShowStage({
       {control.overlay && (
         <div key={control.overlayAt ?? "overlay"} className="pointer-events-none absolute inset-x-0 bottom-[6%] z-40 flex justify-center px-[8%]">
           <div
-            className="show-card-solid animate-in slide-in-from-bottom-10 fade-in duration-700 rounded-[32px] px-16 py-8 text-center"
+            className="show-card-solid animate-in slide-in-from-bottom-10 fade-in duration-700 text-center"
+            style={{ borderRadius: 32 * k, padding: `${32 * k}px ${64 * k}px` }}
           >
-            <p className="show-display text-balance font-semibold" style={{ fontSize: 64, lineHeight: 1.15 }}>
+            <p className="show-display text-balance font-semibold" style={{ fontSize: 64 * k, lineHeight: 1.15 }}>
               {typo(control.overlay, locale)}
             </p>
           </div>
@@ -251,7 +271,7 @@ export function ShowStage({
   );
 }
 
-function Spotlight({ donation, event, label }: { donation: PublicDonation; event: LiveEventInfo; label: string }) {
+function Spotlight({ donation, event, label, k }: { donation: PublicDonation; event: LiveEventInfo; label: string; k: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const locale = event.locale;
   useEffect(() => {
@@ -270,17 +290,25 @@ function Spotlight({ donation, event, label }: { donation: PublicDonation; event
 
   return (
     <div ref={ref} className="show-spotlight-backdrop pointer-events-none absolute inset-0 z-40 flex items-center justify-center" style={{ perspective: 1200 }}>
-      <div data-card className="show-card-solid max-w-[1500px] rounded-[48px] px-28 py-20 text-center" style={{ minWidth: 900 }}>
-        <div data-line className="font-bold uppercase" style={{ fontSize: 32, letterSpacing: "0.3em", color: "var(--show-accent)" }}>
+      <div
+        data-card
+        className="show-card-solid text-center"
+        style={{ minWidth: 900 * k, maxWidth: 1500 * k, borderRadius: 48 * k, padding: `${80 * k}px ${112 * k}px` }}
+      >
+        <div data-line className="font-bold uppercase" style={{ fontSize: 32 * k, letterSpacing: "0.3em", color: "var(--show-accent)" }}>
           {label}
         </div>
-        <div data-line className="show-display mt-6 font-semibold text-balance break-words" style={{ fontSize: donation.donorName.length > 28 ? 80 : 110, lineHeight: 1.05 }}>
+        <div
+          data-line
+          className="show-display font-semibold text-balance break-words"
+          style={{ fontSize: (donation.donorName.length > 28 ? 80 : 110) * k, lineHeight: 1.05, marginTop: 24 * k }}
+        >
           {donation.donorName}
         </div>
-        <div data-line className="tabular show-accent-text mt-6 font-extrabold" style={{ fontSize: 150, lineHeight: 1 }}>
+        <div data-line className="tabular show-accent-text font-extrabold" style={{ fontSize: 150 * k, lineHeight: 1, marginTop: 24 * k }}>
           {formatMoney(donation.amount, event.currency, locale)}
         </div>
-        <div data-line className="mt-8 show-display italic" style={{ fontSize: 40, color: "var(--show-accent)" }}>
+        <div data-line className="show-display italic" style={{ fontSize: 40 * k, color: "var(--show-accent)", marginTop: 32 * k }}>
           {event.name}
         </div>
       </div>

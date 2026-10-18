@@ -32,15 +32,29 @@ import { saveLayoutAction, saveTemplateAction } from "@/app/actions/studio";
 import { setEventLogoAction } from "@/app/actions/events";
 import { useI18n } from "@/i18n/client";
 import { dictionaries } from "@/i18n/dictionaries";
-import { blockToPixels, clampBlock, DEFAULT_BLOCKS, pixelsToBlock, type BlockType, type ShowBlock, type ShowConfig } from "@/lib/show/config";
+import {
+  blockToPixels,
+  clampBlock,
+  customFormatBlocks,
+  DEFAULT_BLOCKS,
+  pixelsToBlock,
+  stageSize,
+  withFormatBlocks,
+  withoutFormatBlocks,
+  type BlockType,
+  type ShowBlock,
+  type ShowConfig,
+} from "@/lib/show/config";
+import { FORMAT_LIST, REFERENCE_FORMAT, type FormatId } from "@/lib/show/formats";
 import { getBackground } from "@/lib/show/themes";
 import { CURRENCY_SYMBOL } from "@/lib/money";
 import { QUICK_AMOUNTS } from "@/lib/constants";
 import type { LiveSnapshot, PublicDonation } from "@/lib/live/types";
 import { cn } from "@/lib/utils";
+import { fmt } from "@/i18n/format";
 import { useHistory } from "./use-history";
-import { findOverlaps } from "@/lib/show/smart-layout";
-import { AnimationsPanel, ElementsPanel, PropertiesPanel, StylePanel, TextsPanel } from "./panels";
+import { deriveFormatBlocks, findOverlaps, formatBlocks } from "@/lib/show/smart-layout";
+import { AnimationsPanel, ElementsPanel, PropertiesPanel, RatioIcon, StylePanel, TextsPanel, type Update } from "./panels";
 
 type Template = { id: string; name: string; config: ShowConfig };
 
@@ -65,10 +79,18 @@ export function StudioClient({
   templates: Template[];
   backHref: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const lowPower = useLowPower();
   const history = useHistory<ShowConfig>(snapshot.layout);
   const config = history.value;
+  const rtl = snapshot.event.locale === "he";
+  // Format d'écran édité : chaque format a sa mise en page ; couleurs, arrière-plan, textes et
+  // animations restent communs. Les aperçus ailleurs (Régie, accueil) restent en 16:9.
+  const [format, setFormat] = useState<FormatId>(REFERENCE_FORMAT);
+  const stage = stageSize(format);
+  const customized = customFormatBlocks(config, format) !== null;
+  // Configuration vue depuis le format édité : ses blocs à la place de la mise en page 16:9.
+  const view = useMemo<ShowConfig>(() => ({ ...config, blocks: formatBlocks(config, format, rtl) }), [config, format, rtl]);
   const [savedConfig, setSavedConfig] = useState<ShowConfig>(snapshot.layout);
   const [selected, setSelected] = useState<BlockType | null>("total");
   const [snap, setSnap] = useState(true);
@@ -80,7 +102,7 @@ export function StudioClient({
   const [templateDialog, setTemplateDialog] = useState(false);
   const [logo, setLogo] = useState<string | null>(eventLogoUrl);
   const dirty = useMemo(() => JSON.stringify(config) !== JSON.stringify(savedConfig), [config, savedConfig]);
-  const overlapping = useMemo(() => new Set(findOverlaps(config.blocks).flat()), [config.blocks]);
+  const overlapping = useMemo(() => new Set(findOverlaps(view.blocks).flat()), [view.blocks]);
 
   // Aperçu : données réelles + dons simulés localement.
   const [previewTotal, setPreviewTotal] = useState(snapshot.total);
@@ -104,7 +126,33 @@ export function StudioClient({
     setEffect({ id: n, kind: "donation", donation });
   }, [demoNames, snapshot.event.currency]);
 
-  const update = history.set;
+  /** Réglages communs (arrière-plan, couleurs, animations, textes). */
+  const setConfig = history.set;
+  const updateShared: Update = setConfig;
+  /**
+   * Modification vue depuis le format édité : les blocs vont dans la mise en page de ce format
+   * (16:9 : mise en page principale), le reste de la configuration est commun. Tant qu'elle
+   * reste identique à la mise en page dérivée, un format secondaire n'est pas personnalisé.
+   */
+  const update = useCallback<Update>(
+    (fn, coalesceKey) =>
+      setConfig((c) => {
+        const current: ShowConfig = { ...c, blocks: formatBlocks(c, format, rtl) };
+        const next = fn(current);
+        if (next === current) return c;
+        const shared: ShowConfig = { ...next, blocks: c.blocks };
+        if (next.blocks === current.blocks) return shared;
+        if (format === REFERENCE_FORMAT) return { ...shared, blocks: next.blocks };
+        if (!customFormatBlocks(c, format) && JSON.stringify(next.blocks) === JSON.stringify(deriveFormatBlocks(shared, format, rtl))) return shared;
+        return withFormatBlocks(shared, format, next.blocks);
+      }, coalesceKey),
+    [setConfig, format, rtl],
+  );
+
+  const resetFormat = useCallback(() => {
+    history.set((c) => withoutFormatBlocks(c, format));
+    toast.success(t.studio.formatResetDone);
+  }, [history, format, t]);
 
   const save = useCallback(() => {
     startSaving(async () => {
@@ -167,19 +215,19 @@ export function StudioClient({
 
   const setBlockRect = useCallback(
     (type: BlockType, rect: { left: number; top: number; width: number; height: number }) => {
-      update((c) => ({ ...c, blocks: c.blocks.map((b) => (b.type === type ? clampBlock({ ...b, ...pixelsToBlock(rect) }) : b)) }));
+      update((c) => ({ ...c, blocks: c.blocks.map((b) => (b.type === type ? clampBlock({ ...b, ...pixelsToBlock(rect, stage) }) : b)) }));
     },
-    [update],
+    [update, stage],
   );
 
   const wrapBlock = useCallback(
     (block: ShowBlock, content: React.ReactNode) => {
       if (!block.visible || !scale) return null;
-      const px = blockToPixels(block);
+      const px = blockToPixels(block, stage);
       const active = selected === block.type;
       return (
         <Rnd
-          key={`${block.type}-${Math.round(scale * 1000)}`}
+          key={`${block.type}-${format}-${Math.round(scale * 1000)}`}
           size={{ width: px.width, height: px.height }}
           position={{ x: px.left, y: px.top }}
           scale={scale}
@@ -224,7 +272,7 @@ export function StudioClient({
         </Rnd>
       );
     },
-    [scale, snap, selected, setBlockRect, t, overlapping],
+    [scale, snap, selected, setBlockRect, t, overlapping, stage, format],
   );
 
   async function changeLogo(url: string | null) {
@@ -300,7 +348,10 @@ export function StudioClient({
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => {
-                if (window.confirm(t.studio.resetLayoutConfirm)) update((c) => ({ ...c, blocks: DEFAULT_BLOCKS.map((b) => ({ ...b })) }));
+                if (!window.confirm(t.studio.resetLayoutConfirm)) return;
+                // Format secondaire : retour à l'adaptation automatique du 16:9.
+                if (format === REFERENCE_FORMAT) update((c) => ({ ...c, blocks: DEFAULT_BLOCKS.map((b) => ({ ...b })) }));
+                else history.set((c) => withoutFormatBlocks(c, format));
               }}
             >
               <RotateCcw className="size-4" />
@@ -348,16 +399,16 @@ export function StudioClient({
             </TabsList>
             <ScrollArea className="min-h-0 flex-1">
               <TabsContent value="blocks" className="mt-0">
-                <ElementsPanel config={config} update={update} selected={selected} onSelect={setSelected} rtl={snapshot.event.locale === "he"} />
+                <ElementsPanel config={view} update={update} selected={selected} onSelect={setSelected} rtl={rtl} format={format} />
               </TabsContent>
               <TabsContent value="style" className="mt-0">
-                <StylePanel config={config} update={update} organizationId={organizationId} logoUrl={logo} onLogoChange={changeLogo} blobEnabled={blobEnabled} />
+                <StylePanel config={config} update={updateShared} organizationId={organizationId} logoUrl={logo} onLogoChange={changeLogo} blobEnabled={blobEnabled} />
               </TabsContent>
               <TabsContent value="anim" className="mt-0">
-                <AnimationsPanel config={config} update={update} currencySymbol={CURRENCY_SYMBOL[snapshot.event.currency]} />
+                <AnimationsPanel config={config} update={updateShared} currencySymbol={CURRENCY_SYMBOL[snapshot.event.currency]} />
               </TabsContent>
               <TabsContent value="texts" className="mt-0">
-                <TextsPanel config={config} update={update} eventLocale={snapshot.event.locale} />
+                <TextsPanel config={config} update={updateShared} eventLocale={snapshot.event.locale} />
               </TabsContent>
             </ScrollArea>
           </Tabs>
@@ -370,9 +421,96 @@ export function StudioClient({
             if (e.target === e.currentTarget) setSelected(null);
           }}
         >
-          <ShowViewport className="flex-1 rounded-xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] ring-1 ring-white/10" background="#050407" onScale={setScale}>
+          {/* Format d'écran édité */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div role="radiogroup" aria-label={t.studio.screenFormat} className="inline-flex flex-wrap rounded-xl bg-muted p-1">
+              {FORMAT_LIST.map((f) => {
+                const active = f.id === format;
+                const custom = f.id !== REFERENCE_FORMAT && customFormatBlocks(config, f.id) !== null;
+                return (
+                  <Tooltip key={f.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        aria-label={f.label[locale]}
+                        onClick={() => setFormat(f.id)}
+                        className={cn(
+                          "relative flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs tabular transition-colors",
+                          active ? "bg-background font-semibold shadow-sm" : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <RatioIcon width={f.width} height={f.height} active={active} />
+                        <span dir="ltr">{f.id}</span>
+                        {custom && <span aria-hidden className="absolute end-1 top-1 size-1.5 rounded-full bg-gold" />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{f.label[locale]}</TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  data-format-status={format === REFERENCE_FORMAT ? "main" : customized ? "custom" : "auto"}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-xs font-medium",
+                    format === REFERENCE_FORMAT ? "bg-muted text-muted-foreground" : customized ? "bg-gold-soft text-gold" : "bg-success/10 text-success",
+                  )}
+                >
+                  {format === REFERENCE_FORMAT ? t.studio.formatMain : customized ? t.studio.formatCustom : t.studio.formatAuto}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-64">
+                {format === REFERENCE_FORMAT ? t.studio.formatMainHelp : customized ? t.studio.formatCustomHelp : t.studio.formatAutoHelp}
+              </TooltipContent>
+            </Tooltip>
+            {format !== REFERENCE_FORMAT && customized && (
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                onClick={() => {
+                  if (window.confirm(t.studio.formatResetConfirm)) resetFormat();
+                }}
+              >
+                <RotateCcw />
+                {t.studio.formatReset}
+              </Button>
+            )}
+            <Button asChild size="xs" variant="ghost" className="ms-auto">
+              <a href={`${displayUrl}?format=${encodeURIComponent(format)}`} target="_blank" rel="noreferrer">
+                <ExternalLink />
+                {fmt(t.studio.openScreenFormat, { format })}
+              </a>
+            </Button>
+          </div>
+          {/* La zone d'aperçu prend les proportions du format (unités de conteneur). */}
+          <div
+            className="relative min-h-0 flex-1"
+            style={{ containerType: "size" }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSelected(null);
+            }}
+          >
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSelected(null);
+            }}
+          >
+          <ShowViewport
+            className="rounded-xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] ring-1 ring-white/10"
+            style={{ width: `min(100cqw, 100cqh * ${stage.width} / ${stage.height})`, aspectRatio: `${stage.width} / ${stage.height}` }}
+            background="#050407"
+            stage={stage}
+            onScale={setScale}
+          >
             <>
             <ShowStage
+              format={format}
               config={config}
               event={event}
               total={previewTotal}
@@ -398,13 +536,15 @@ export function StudioClient({
             )}
             </>
           </ShowViewport>
+          </div>
+          </div>
           <p className="mt-3 hidden text-center text-xs text-muted-foreground lg:block">{t.studio.keyboardHelp}</p>
         </main>
 
         {/* Panneau droit */}
         <aside className="order-3 hidden min-h-0 border-s lg:block lg:w-[300px] lg:shrink-0">
           <ScrollArea className="h-full">
-            <PropertiesPanel config={config} update={update} selected={selected} />
+            <PropertiesPanel config={view} update={update} selected={selected} />
           </ScrollArea>
         </aside>
       </div>

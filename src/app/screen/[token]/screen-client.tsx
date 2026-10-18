@@ -6,13 +6,18 @@ import { ShowStage } from "@/components/show/stage";
 import { ShowViewport } from "@/components/show/viewport";
 import { useLowPower } from "@/components/show/use-low-power";
 import { useLiveEvent } from "@/components/show/use-live-event";
+import { useScreenFormat } from "@/components/show/use-screen-format";
 import { dictionaries } from "@/i18n/dictionaries";
 import type { LiveSnapshot } from "@/lib/live/types";
+import { stageSize } from "@/lib/show/config";
+import type { FormatId } from "@/lib/show/formats";
 import { cn } from "@/lib/utils";
 
-export function ScreenClient({ token, snapshot }: { token: string; snapshot: LiveSnapshot }) {
+export function ScreenClient({ token, snapshot, forcedFormat = null }: { token: string; snapshot: LiveSnapshot; forcedFormat?: FormatId | null }) {
   const { state, status } = useLiveEvent({ kind: "screen", token }, snapshot);
   const lowPower = useLowPower();
+  // Format le plus proche de la fenêtre (ou imposé par ?format=) : la scène reste montée.
+  const format = useScreenFormat(forcedFormat);
   const t = dictionaries[state.event.locale].show;
   const [idle, setIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -85,7 +90,7 @@ export function ScreenClient({ token, snapshot }: { token: string; snapshot: Liv
 
   return (
     <div className={cn("fixed inset-0 overflow-hidden bg-black", idle && "cursor-none")} onDoubleClick={toggleFullscreen}>
-      <ShowViewport className="size-full">
+      <ShowViewport className="size-full" stage={stageSize(format)}>
         <ShowStage
           config={state.layout}
           event={state.event}
@@ -95,6 +100,7 @@ export function ScreenClient({ token, snapshot }: { token: string; snapshot: Liv
           formUrl={state.formUrl}
           effect={state.effect}
           lowPower={lowPower}
+          format={format}
         />
       </ShowViewport>
 
