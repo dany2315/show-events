@@ -106,26 +106,25 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     await login(page, s.adminEmail, s.password);
     await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/studio`);
     await page.getByRole("tab", { name: "Style" }).click();
+    // Bibliothèque d'arrière-plans : plus aucun import de fond personnalisé
+    await expect(page.getByText("Arrière-plan", { exact: true })).toBeVisible();
+    await expect(page.getByText("Couleur de fond")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Importer", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Nature" }).click();
+    await expect(page.getByRole("button", { name: "Nature" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText("Modifications non enregistrées")).toBeVisible();
     await page.getByRole("button", { name: /Enregistrer le design/ }).click();
     await expect(page.getByText("Design enregistré et diffusé sur les écrans")).toBeVisible();
     await expect
       .poll(async () => screen.locator(".show-root").first().evaluate((el) => getComputedStyle(el).getPropertyValue("--show-accent").trim()), { timeout: 20_000 })
       .toBe("#a6e35f");
+    await expect(screen.locator('[data-backdrop="nature"]')).toHaveCount(1);
   });
 
-  test("studio : mise en page intelligente, fond vidéo et bloc vidéo diffusés sur l'écran", async ({ page }) => {
+  test("studio : mise en page intelligente et bloc vidéo diffusés sur l'écran", async ({ page }) => {
     const s = state();
     await login(page, s.adminEmail, s.password);
     await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/studio`);
-
-    // Fond d'écran vidéo (lien YouTube)
-    await page.getByRole("tab", { name: "Style" }).click();
-    await page.getByRole("button", { name: "Vidéo", exact: true }).click();
-    await page.getByPlaceholder("Lien YouTube, Vimeo, Dailymotion ou MP4").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-    await page.getByRole("button", { name: "Appliquer" }).click();
-    await expect(page.getByText("YouTube · dQw4w9WgXcQ")).toBeVisible();
 
     // Bloc vidéo + disposition automatique « Vidéo à la une »
     await page.getByRole("tab", { name: "Éléments" }).click();
@@ -139,13 +138,13 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
 
     await page.getByRole("button", { name: /Enregistrer le design/ }).click();
     await expect(page.getByText("Design enregistré et diffusé sur les écrans")).toBeVisible();
-    await expect(screen.locator('iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]')).toHaveCount(1, { timeout: 20_000 });
-    await expect(screen.locator('iframe[src*="player.vimeo.com/video/123456789"]')).toHaveCount(1);
-    // Lecture épurée : ni titre, ni commandes, ni sous-titres, ni suggestions, aucune interaction
-    const yt = await screen.locator('iframe[src*="youtube-nocookie.com"]').getAttribute("src");
-    for (const param of ["controls=0", "rel=0", "fs=0", "cc_load_policy=0", "iv_load_policy=3", "disablekb=1"]) expect(yt).toContain(param);
+    await expect(screen.locator('iframe[src*="player.vimeo.com/video/123456789"]')).toHaveCount(1, { timeout: 20_000 });
+    // Lecture épurée : ni titre, ni commandes, aucune interaction
     expect(await screen.locator('iframe[src*="player.vimeo.com"]').getAttribute("src")).toContain("background=1");
-    await expect(screen.locator('iframe[src*="youtube-nocookie.com"]')).toHaveCSS("pointer-events", "none");
+    await expect(screen.locator('iframe[src*="player.vimeo.com"]')).toHaveCSS("pointer-events", "none");
+    // Le fond reste le décor de la bibliothèque : aucune vidéo ni image de fond
+    await expect(screen.locator("iframe")).toHaveCount(1);
+    await expect(screen.locator("[data-backdrop]")).toHaveCount(1);
     if (process.env.E2E_SCREENSHOTS) {
       await screen.waitForTimeout(9000);
       await screen.screenshot({ path: "tests/e2e/__screens__/14-ecran-video.png" });

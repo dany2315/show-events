@@ -184,6 +184,7 @@
 
 /* ─── Show (écran géant) ───────────────────────────────────────────────── */
 
+/* Fond de repli (formulaire mobile, avant l'affichage du décor de l'arrière-plan). */
 .show-root {
   color: var(--show-text);
   background:
@@ -290,9 +291,19 @@
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
   50% { transform: translate3d(var(--dx, 30px), var(--dy, -20px), 0) scale(1.08); }
 }
-@keyframes show-rays {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+@keyframes show-veil {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.45; }
+  50% { transform: translate3d(var(--dx, 120px), 18px, 0); opacity: 0.85; }
+}
+@keyframes show-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes show-sweep {
+  0%, 55% { transform: translate3d(-120%, 0, 0); opacity: 0; }
+  60% { opacity: 0.35; }
+  85% { opacity: 0.35; }
+  100% { transform: translate3d(420%, 0, 0); opacity: 0; }
 }
 
 .show-row-highlight {

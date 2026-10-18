@@ -1,4 +1,5 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { BACKGROUND_LIST } from "../../src/lib/show/themes";
 import { login, state } from "./helpers";
 
 /**
@@ -66,5 +67,52 @@ test("captures des écrans principaux", async ({ browser }) => {
     await login(admin, superEmail, superPassword);
     await admin.screenshot({ path: `${dir}/13-super-admin.png`, fullPage: true });
     await admin.close();
+  }
+});
+
+/** Bibliothèque d'arrière-plans : vignettes du Studio, création d'événement et rendu réel sur l'écran géant. */
+test("captures de la bibliothèque d'arrière-plans", async ({ page, browser }) => {
+  test.setTimeout(300_000);
+  const s = state();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await login(page, s.adminEmail, s.password);
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/studio`);
+  // Disposition par défaut (sans bloc vidéo) pour juger le décor.
+  await page.getByRole("button", { name: /Modèles/ }).click();
+  await page.getByRole("menuitem", { name: "Réinitialiser la disposition" }).click();
+  await page.getByRole("tab", { name: "Style" }).click();
+  await expect(page.getByRole("button", { name: BACKGROUND_LIST[0].label.fr, exact: true })).toBeVisible();
+  await page.waitForTimeout(800);
+  if (process.env.E2E_SCREENSHOTS) await page.screenshot({ path: `${dir}/17-studio-arriere-plans.png` });
+
+  const screen = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  await screen.goto(`/screen/${s.live.displayToken}`);
+  await expect(screen.locator("[data-total]")).toBeVisible();
+  // Sans captures : un aller-retour suffit à vérifier la diffusion du décor.
+  const list = process.env.E2E_SCREENSHOTS ? BACKGROUND_LIST : BACKGROUND_LIST.slice(1, 3);
+  for (const [i, def] of list.entries()) {
+    await page.getByRole("button", { name: def.label.fr, exact: true }).click();
+    const save = page.getByRole("button", { name: /Enregistrer le design/ });
+    // L'arrière-plan déjà diffusé n'a rien à enregistrer.
+    if (await save.isEnabled()) {
+      await save.click();
+      await expect(page.getByText("Design enregistré et diffusé sur les écrans").first()).toBeVisible();
+    }
+    await expect(screen.locator(`[data-backdrop="${def.id}"]`)).toHaveCount(1, { timeout: 20_000 });
+    if (process.env.E2E_SCREENSHOTS) {
+      await screen.waitForTimeout(1500);
+      await screen.screenshot({ path: `${dir}/18-fond-${String(i + 1).padStart(2, "0")}-${def.id}.png` });
+    }
+  }
+  await screen.close();
+
+  if (process.env.E2E_SCREENSHOTS) {
+    await page.goto(`/o/${s.orgSlug}/events/new`);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${dir}/19-creation-evenement.png`, fullPage: true });
+    await page.goto("/#styles");
+    await page.waitForTimeout(2000);
+    await page.locator("#styles").screenshot({ path: `${dir}/20-galerie-accueil.png` });
   }
 });

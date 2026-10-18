@@ -33,7 +33,7 @@ import { setEventLogoAction } from "@/app/actions/events";
 import { useI18n } from "@/i18n/client";
 import { dictionaries } from "@/i18n/dictionaries";
 import { blockToPixels, clampBlock, DEFAULT_BLOCKS, pixelsToBlock, type BlockType, type ShowBlock, type ShowConfig } from "@/lib/show/config";
-import { THEMES } from "@/lib/show/themes";
+import { getBackground } from "@/lib/show/themes";
 import { CURRENCY_SYMBOL } from "@/lib/money";
 import { QUICK_AMOUNTS } from "@/lib/constants";
 import type { LiveSnapshot, PublicDonation } from "@/lib/live/types";
@@ -316,7 +316,7 @@ export function StudioClient({
                   if (window.confirm(t.studio.applyTemplateConfirm)) history.reset(tpl.config);
                 }}
               >
-                <span className="size-3 rounded-full" style={{ background: THEMES[tpl.config.theme].vars.accent }} />
+                <span className="size-3 rounded-full" style={{ background: getBackground(tpl.config.theme).vars.accent }} />
                 <span className="truncate">{tpl.name}</span>
               </DropdownMenuItem>
             ))}

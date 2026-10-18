@@ -4,12 +4,12 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import confetti from "canvas-confetti";
 import { blockToPixels, STAGE_HEIGHT, STAGE_WIDTH, type ShowBlock, type ShowConfig } from "@/lib/show/config";
-import { THEMES, themeCssVars } from "@/lib/show/themes";
+import { getBackground, themeCssVars } from "@/lib/show/themes";
 import { formatMoney, goalProgress } from "@/lib/money";
 import type { LiveControl, LiveEventInfo, PublicDonation } from "@/lib/live/types";
 import { dictionaries } from "@/i18n/dictionaries";
 import { Ambient } from "./ambient";
-import { VideoMedia } from "./video-media";
+import { Backdrop } from "./backdrop";
 import { typo } from "./fit";
 import { ShowBlockContent, type BlockContext } from "./blocks";
 
@@ -55,7 +55,7 @@ export function ShowStage({
 }: ShowStageProps) {
   const locale = event.locale;
   const t = dictionaries[locale].show;
-  const theme = THEMES[config.theme] ?? THEMES.gala;
+  const theme = getBackground(config.theme);
   const animate = !control.paused;
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -200,23 +200,8 @@ export function ShowStage({
       className={`show-root relative overflow-hidden ${lowPower ? "show-lowpower" : ""} ${className ?? ""}`}
       style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT, ...(cssVars as React.CSSProperties) }}
     >
-      {(config.backgroundVideo || config.backgroundImage) && (
-        <>
-          {config.backgroundVideo ? (
-            <div className="absolute inset-0">
-              <VideoMedia url={config.backgroundVideo} muted loop fit="cover" box={{ width: STAGE_WIDTH, height: STAGE_HEIGHT }} />
-            </div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={config.backgroundImage!} alt="" className="absolute inset-0 size-full object-cover" draggable={false} />
-          )}
-          <div className="absolute inset-0" style={{ background: "var(--show-bg)", opacity: config.backgroundDim }} />
-          <div
-            className="absolute inset-0"
-            style={{ background: "linear-gradient(180deg, transparent 40%, color-mix(in oklab, var(--show-bg) 70%, transparent))" }}
-          />
-        </>
-      )}
+      {/* Arrière-plan de la bibliothèque : décor statique + ambiance animée légère. */}
+      <Backdrop theme={theme.id} />
       <Ambient kind={theme.ambient} enabled={config.animation.ambient && !control.paused && !lowPower} />
 
       {config.blocks.map((block) => {

@@ -7,7 +7,27 @@ export const STAGE_HEIGHT = 1080;
 export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode", "video"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
-export const THEME_IDS = ["gala", "moderne", "minimal", "feerie", "nature"] as const;
+/**
+ * Bibliothèque d'arrière-plans proposés par la plateforme (identifiants stables, stockés en base).
+ * L'ordre est celui de l'affichage dans le Studio, la création d'événement et la page d'accueil.
+ * Les 5 premiers identifiants historiques (gala, moderne, minimal, feerie, nature) restent valides.
+ */
+export const THEME_IDS = [
+  "gala",
+  "velours",
+  "artdeco",
+  "marbre",
+  "jerusalem",
+  "royal",
+  "emeraude",
+  "aurore",
+  "feerie",
+  "feux",
+  "sunset",
+  "nature",
+  "moderne",
+  "minimal",
+] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
 export const DONATION_ANIMATIONS = ["slide", "pop", "spotlight", "fade"] as const;
@@ -50,17 +70,13 @@ export type ShowBlock = z.infer<typeof blockSchema>;
 
 export const showConfigSchema = z.object({
   version: z.literal(1),
+  /** Arrière-plan choisi dans la bibliothèque de la plateforme (champ historique « theme »). */
   theme: z.enum(THEME_IDS),
+  /** Couleurs personnalisées des éléments (le décor garde la palette de l'arrière-plan). */
   colors: z.object({
     accent: hexColor,
     text: hexColor,
-    background: hexColor,
   }),
-  /** Fond d'écran : image ou GIF. */
-  backgroundImage: mediaUrlSchema.nullable(),
-  /** Fond d'écran vidéo (prioritaire sur l'image), toujours muet et en boucle. */
-  backgroundVideo: mediaUrlSchema.nullable(),
-  backgroundDim: z.number().min(0).max(0.9),
   animation: z.object({
     donation: z.enum(DONATION_ANIMATIONS),
     counter: z.enum(COUNTER_ANIMATIONS),
@@ -106,10 +122,7 @@ export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
   return {
     version: 1,
     theme,
-    colors: { accent: null, text: null, background: null },
-    backgroundImage: null,
-    backgroundVideo: null,
-    backgroundDim: 0.45,
+    colors: { accent: null, text: null },
     animation: {
       donation: "slide",
       counter: "roll",
@@ -128,6 +141,8 @@ export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
  * Normalise une configuration venant de la base ou du client :
  * valeurs manquantes complétées, blocs inconnus retirés, blocs manquants ajoutés (masqués),
  * blocs maintenus dans la surface.
+ * Les champs retirés des anciennes versions (fond image / vidéo, assombrissement, couleur de fond)
+ * sont ignorés silencieusement.
  */
 export function normalizeShowConfig(input: unknown): ShowConfig {
   const base = defaultShowConfig();
@@ -138,10 +153,7 @@ export function normalizeShowConfig(input: unknown): ShowConfig {
   const merged: ShowConfig = {
     ...base,
     theme,
-    colors: { ...base.colors, ...(raw.colors ?? {}) },
-    backgroundImage: typeof raw.backgroundImage === "string" && mediaUrlSchema.safeParse(raw.backgroundImage).success ? raw.backgroundImage : null,
-    backgroundVideo: typeof raw.backgroundVideo === "string" && mediaUrlSchema.safeParse(raw.backgroundVideo).success ? raw.backgroundVideo : null,
-    backgroundDim: typeof raw.backgroundDim === "number" ? raw.backgroundDim : base.backgroundDim,
+    colors: { accent: pickColor(raw.colors, "accent"), text: pickColor(raw.colors, "text") },
     animation: { ...base.animation, ...(raw.animation ?? {}) },
     texts: { ...base.texts, ...(raw.texts ?? {}) },
     donations: { ...base.donations, ...(raw.donations ?? {}) },
@@ -164,6 +176,12 @@ export function normalizeShowConfig(input: unknown): ShowConfig {
 
   const result = showConfigSchema.safeParse(merged);
   return result.success ? result.data : base;
+}
+
+function pickColor(colors: unknown, key: "accent" | "text"): string | null {
+  if (!colors || typeof colors !== "object") return null;
+  const value = (colors as Record<string, unknown>)[key];
+  return typeof value === "string" && hexColor.safeParse(value).success ? value : null;
 }
 
 export function clampBlock(block: ShowBlock): ShowBlock {

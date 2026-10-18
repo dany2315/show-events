@@ -8,8 +8,10 @@ import {
   normalizeShowConfig,
   pixelsToBlock,
   showConfigSchema,
+  THEME_IDS,
 } from "@/lib/show/config";
-import { themeCssVars, THEMES } from "@/lib/show/themes";
+import { BACKGROUND_LIST, BACKGROUNDS, backgroundScene, SHOW_CSS_VARS, themeCssVars } from "@/lib/show/themes";
+import { AMBIENT_ELEMENT_COUNT } from "@/components/show/ambient";
 import { fitFontSize } from "@/components/show/fit";
 
 describe("configuration du show", () => {
@@ -60,19 +62,72 @@ describe("configuration du show", () => {
   });
 });
 
-describe("thèmes", () => {
-  it("chaque thème fournit les variables CSS du show", () => {
-    for (const id of Object.keys(THEMES) as (keyof typeof THEMES)[]) {
-      const vars = themeCssVars({ theme: id, colors: { accent: null, text: null, background: null } });
-      expect(vars["--show-bg"]).toBeTruthy();
-      expect(vars["--show-accent"]).toBeTruthy();
-    }
+describe("bibliothèque d'arrière-plans", () => {
+  it("propose au moins 10 arrière-plans, dont les 5 identifiants historiques", () => {
+    expect(THEME_IDS.length).toBeGreaterThanOrEqual(10);
+    for (const id of ["gala", "moderne", "minimal", "feerie", "nature"]) expect(THEME_IDS).toContain(id);
+    expect(BACKGROUND_LIST.map((b) => b.id)).toEqual([...THEME_IDS]);
   });
-  it("les couleurs personnalisées priment sur le thème", () => {
-    const vars = themeCssVars({ theme: "gala", colors: { accent: "#ff0000", text: "#00ff00", background: "#000011" } });
+
+  it.each(THEME_IDS)("l'arrière-plan « %s » fournit toutes les variables CSS du show", (id) => {
+    const vars = themeCssVars({ theme: id, colors: { accent: null, text: null } });
+    expect(Object.keys(vars).sort()).toEqual([...SHOW_CSS_VARS].sort());
+    for (const name of SHOW_CSS_VARS) expect(vars[name], name).toMatch(/\S/);
+  });
+
+  it.each(THEME_IDS)("l'arrière-plan « %s » est complet, 100 % CSS / SVG inline et sans couleurs imposées", (id) => {
+    const def = BACKGROUNDS[id];
+    expect(def.id).toBe(id);
+    expect(def.label.fr.trim()).not.toBe("");
+    expect(def.label.he.trim()).not.toBe("");
+    expect(def.tagline.fr.trim()).not.toBe("");
+    expect(def.tagline.he.trim()).not.toBe("");
+    expect(def.lockedColors).toBe(false);
+    const scene = backgroundScene(id);
+    expect(scene.length).toBeGreaterThan(20);
+    // Aucune ressource externe : seules des images SVG en data-URI.
+    expect(scene).not.toMatch(/url\("(?!data:image\/svg\+xml,)/);
+    expect(scene).not.toMatch(/url\((?!"data:|%23)/);
+    for (const [, data] of scene.matchAll(/url\("data:image\/svg\+xml,([^"]*)"\)/g)) {
+      expect(decodeURIComponent(data)).not.toMatch(/(href|src)=['"]?(https?:|\/\/)|<image|@import/);
+    }
+    expect(AMBIENT_ELEMENT_COUNT[def.ambient]).toBeLessThanOrEqual(20);
+  });
+
+  it("les couleurs personnalisées des éléments priment sur la palette", () => {
+    const vars = themeCssVars({ theme: "gala", colors: { accent: "#ff0000", text: "#00ff00" } });
     expect(vars["--show-accent"]).toBe("#ff0000");
     expect(vars["--show-text"]).toBe("#00ff00");
-    expect(vars["--show-bg"]).toBe("#000011");
+    expect(vars["--show-bg"]).toBe(BACKGROUNDS.gala.vars.bg);
+  });
+
+  it("une ancienne couleur de fond personnalisée est ignorée", () => {
+    const vars = themeCssVars({ theme: "nature", colors: { accent: null, text: null, background: "#000011" } });
+    expect(vars["--show-bg"]).toBe(BACKGROUNDS.nature.vars.bg);
+  });
+
+  it("normalise sans erreur une ancienne configuration avec fond image / vidéo et couleur de fond", () => {
+    const legacy = {
+      ...defaultShowConfig("feerie"),
+      colors: { accent: "#123456", text: null, background: "#000011" },
+      backgroundImage: "/api/media/abc123",
+      backgroundVideo: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      backgroundDim: 0.6,
+    };
+    const config = normalizeShowConfig(legacy);
+    expect(showConfigSchema.safeParse(config).success).toBe(true);
+    expect(config.theme).toBe("feerie");
+    expect(config.colors).toEqual({ accent: "#123456", text: null });
+    for (const key of ["backgroundImage", "backgroundVideo", "backgroundDim"]) expect(config).not.toHaveProperty(key);
+    // Les blocs et réglages de l'ancienne configuration sont conservés.
+    expect(config.blocks).toEqual(legacy.blocks);
+  });
+
+  it("ignore une couleur personnalisée invalide sans perdre le reste de la configuration", () => {
+    const config = normalizeShowConfig({ theme: "aurore", colors: { accent: "rouge", text: "#ffffff" }, texts: { message: "Merci" } });
+    expect(config.theme).toBe("aurore");
+    expect(config.colors).toEqual({ accent: null, text: "#ffffff" });
+    expect(config.texts.message).toBe("Merci");
   });
 });
 

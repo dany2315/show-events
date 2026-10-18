@@ -42,17 +42,17 @@ import { dictionaries } from "@/i18n/dictionaries";
 import {
   ALIGNMENTS,
   DONATION_ANIMATIONS,
-  THEME_IDS,
   clampBlock,
   type BlockType,
   type ShowBlock,
   type ShowConfig,
 } from "@/lib/show/config";
-import { THEMES } from "@/lib/show/themes";
+import { BACKGROUND_LIST, getBackground } from "@/lib/show/themes";
+import { BackdropThumb } from "@/components/show/backdrop";
 import type { AppLocale } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { formatBytes, uploadImage, UploadTooLargeError } from "@/lib/upload-client";
-import { isImageUrl, parseVideoSource } from "@/lib/show/media";
+import { parseVideoSource } from "@/lib/show/media";
 import { applyPreset, autoLayout, findOverlaps, fixOverlaps, LAYOUT_PRESETS, type LayoutPreset } from "@/lib/show/smart-layout";
 import { fmt as fmtText } from "@/i18n/format";
 
@@ -288,70 +288,70 @@ export function StylePanel({
   blobEnabled: boolean;
 }) {
   const { t, locale } = useI18n();
-  const theme = THEMES[config.theme];
+  const background = getBackground(config.theme);
 
   return (
     <>
-      <Section title={t.studio.theme}>
+      <Section title={t.studio.background} help={t.studio.backgroundHelp}>
         <div className="grid grid-cols-2 gap-2">
-          {THEME_IDS.map((id) => {
-            const def = THEMES[id];
-            const active = id === config.theme;
+          {BACKGROUND_LIST.map((def) => {
+            const active = def.id === config.theme;
             return (
               <button
-                key={id}
+                key={def.id}
                 type="button"
-                onClick={() => update((c) => ({ ...c, theme: id, colors: { accent: null, text: null, background: null } }))}
-                className={cn("overflow-hidden rounded-xl border text-start transition-all", active ? "border-gold ring-2 ring-gold/30" : "hover:border-foreground/30")}
+                aria-pressed={active}
+                title={def.tagline[locale]}
+                onClick={() => update((c) => ({ ...c, theme: def.id, colors: { accent: null, text: null } }))}
+                className={cn("min-w-0 overflow-hidden rounded-xl border text-start transition-all", active ? "border-gold ring-2 ring-gold/30" : "hover:border-foreground/30")}
               >
-                <span className="relative block h-12" style={{ background: `radial-gradient(circle at 25% 15%, ${def.vars.bg2}, ${def.vars.bg} 70%)` }}>
-                  <span className="absolute inset-x-2 bottom-2 h-1 rounded-full" style={{ background: def.vars.accent }} />
-                  <span className="absolute start-2 top-2 h-1.5 w-8 rounded-full" style={{ background: def.vars.text, opacity: 0.8 }} />
-                </span>
-                <span className="block truncate px-2 py-1.5 text-xs font-medium">{def.label[locale]}</span>
+                <BackdropThumb theme={def.id} locale={locale} />
+                {/* w-0 min-w-full : le libellé ne doit pas élargir le panneau défilant (largeur intrinsèque nulle). */}
+                <span className="block w-0 min-w-full truncate px-2 py-1.5 text-xs font-medium">{def.label[locale]}</span>
               </button>
             );
           })}
         </div>
       </Section>
 
-      <Section title={t.studio.colors}>
-        {(
-          [
-            ["accent", t.studio.accentColor, theme.vars.accent],
-            ["text", t.studio.textColor, theme.vars.text],
-            ["background", t.studio.backgroundColor, theme.vars.bg],
-          ] as const
-        ).map(([key, label, fallback]) => {
-          const value = config.colors[key];
-          return (
-            <div key={key} className="flex items-center justify-between gap-3">
-              <Label className="text-sm font-normal">{label}</Label>
-              <div className="flex items-center gap-1.5">
-                {value && (
-                  <button
-                    type="button"
-                    onClick={() => update((c) => ({ ...c, colors: { ...c.colors, [key]: null } }))}
-                    className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                    title={t.studio.resetColor}
-                  >
-                    <RotateCcw className="size-3.5" />
-                  </button>
-                )}
-                <label className="relative size-8 cursor-pointer overflow-hidden rounded-lg border" style={{ background: value ?? fallback }}>
-                  <input
-                    type="color"
-                    value={toHex(value ?? fallback)}
-                    onChange={(e) => update((c) => ({ ...c, colors: { ...c.colors, [key]: e.target.value } }), `color-${key}`)}
-                    className="absolute inset-0 size-full cursor-pointer opacity-0"
-                    aria-label={label}
-                  />
-                </label>
+      {!background.lockedColors && (
+        <Section title={t.studio.colors} help={t.studio.colorsHelp}>
+          {(
+            [
+              ["accent", t.studio.accentColor, background.vars.accent],
+              ["text", t.studio.textColor, background.vars.text],
+            ] as const
+          ).map(([key, label, fallback]) => {
+            const value = config.colors[key];
+            return (
+              <div key={key} className="flex items-center justify-between gap-3">
+                <Label className="text-sm font-normal">{label}</Label>
+                <div className="flex items-center gap-1.5">
+                  {value && (
+                    <button
+                      type="button"
+                      onClick={() => update((c) => ({ ...c, colors: { ...c.colors, [key]: null } }))}
+                      className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                      title={t.studio.resetColor}
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </button>
+                  )}
+                  <label className="relative size-8 cursor-pointer overflow-hidden rounded-lg border" style={{ background: value ?? fallback }}>
+                    <input
+                      type="color"
+                      value={toHex(value ?? fallback)}
+                      onChange={(e) => update((c) => ({ ...c, colors: { ...c.colors, [key]: e.target.value } }), `color-${key}`)}
+                      className="absolute inset-0 size-full cursor-pointer opacity-0"
+                      aria-label={label}
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </Section>
+            );
+          })}
+        </Section>
+      )}
 
       <Section title={t.studio.logo} help={t.studio.logoHelp}>
         <ImagePicker
@@ -363,60 +363,7 @@ export function StylePanel({
           blobEnabled={blobEnabled}
         />
       </Section>
-
-      <BackgroundSection config={config} update={update} organizationId={organizationId} blobEnabled={blobEnabled} />
     </>
-  );
-}
-
-function BackgroundSection({ config, update, organizationId, blobEnabled }: { config: ShowConfig; update: Update; organizationId: string; blobEnabled: boolean }) {
-  const { t } = useI18n();
-  const [tab, setTab] = useState<"image" | "video">(config.backgroundVideo ? "video" : "image");
-  const hasBackground = Boolean(config.backgroundVideo || config.backgroundImage);
-  return (
-    <Section title={t.studio.background} help={t.studio.backgroundHelp}>
-      <div className="inline-flex rounded-xl bg-muted p-1">
-        {(["image", "video"] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setTab(k)}
-            className={cn("rounded-lg px-3 py-1.5 text-xs", tab === k ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
-          >
-            {k === "image" ? t.studio.bgImage : t.studio.bgVideo}
-          </button>
-        ))}
-      </div>
-      {tab === "image" ? (
-        <>
-          <ImagePicker
-            organizationId={organizationId}
-            value={config.backgroundImage}
-            onChange={async (url) => update((c) => ({ ...c, backgroundImage: url, backgroundVideo: url ? null : c.backgroundVideo }))}
-            label={t.studio.upload}
-            blobEnabled={blobEnabled}
-          />
-          <UrlField
-            placeholder="https://…/fond.gif"
-            validate={(v) => isImageUrl(v)}
-            onApply={(url) => update((c) => ({ ...c, backgroundImage: url, backgroundVideo: null }))}
-          />
-        </>
-      ) : (
-        <VideoPicker
-          organizationId={organizationId}
-          blobEnabled={blobEnabled}
-          value={config.backgroundVideo}
-          onChange={(url) => update((c) => ({ ...c, backgroundVideo: url }))}
-        />
-      )}
-      {hasBackground && (
-        <div className="grid gap-2">
-          <Label className="text-sm font-normal">{t.studio.backgroundDim}</Label>
-          <Slider value={[Math.round(config.backgroundDim * 100)]} min={0} max={90} step={5} onValueChange={([v]) => update((c) => ({ ...c, backgroundDim: v / 100 }), "dim")} />
-        </div>
-      )}
-    </Section>
   );
 }
 
@@ -572,7 +519,8 @@ function ImagePicker({
             }
           }}
         />
-        <Button type="button" size="sm" variant="secondary" onClick={() => input.current?.click()} disabled={busy}>
+        {/* Libellé sur plusieurs lignes si besoin : le panneau défilant ne doit pas s'élargir. */}
+        <Button type="button" size="sm" variant="secondary" onClick={() => input.current?.click()} disabled={busy} className="h-auto min-h-8 whitespace-normal py-1.5 text-start">
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
           {busy ? t.studio.uploading : label}
         </Button>

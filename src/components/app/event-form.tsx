@@ -11,8 +11,9 @@ import type { ActionResult } from "@/app/actions/events";
 import { useI18n } from "@/i18n/client";
 import { CURRENCIES, type AppLocale, type CurrencyCode } from "@/lib/constants";
 import { CURRENCY_SYMBOL } from "@/lib/money";
-import { THEME_IDS } from "@/lib/show/config";
-import { THEMES } from "@/lib/show/themes";
+import type { ThemeId } from "@/lib/show/config";
+import { BACKGROUND_LIST, getBackground } from "@/lib/show/themes";
+import { BackdropThumb } from "@/components/show/backdrop";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -147,19 +148,33 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
         <fieldset className="grid gap-3">
           <legend className="text-sm font-medium">{t.events.fieldTemplate}</legend>
           <p className="-mt-1 text-xs text-muted-foreground">{t.events.fieldTemplateHelp}</p>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {templates.map((tpl) => {
-              const theme = THEMES[(tpl.theme as keyof typeof THEMES) ?? "gala"] ?? THEMES.gala;
               const value = `template:${tpl.id}`;
               return (
-                <ThemeOption key={value} active={start === value} onClick={() => setStart(value)} bg={theme.vars.bg} bg2={theme.vars.bg2} accent={theme.vars.accent} title={tpl.name} subtitle={t.nav.templates} />
+                <BackgroundOption
+                  key={value}
+                  active={start === value}
+                  onClick={() => setStart(value)}
+                  theme={getBackground(tpl.theme).id}
+                  title={tpl.name}
+                  subtitle={t.nav.templates}
+                  locale={locale}
+                />
               );
             })}
-            {THEME_IDS.map((id) => {
-              const def = THEMES[id];
-              const value = `theme:${id}`;
+            {BACKGROUND_LIST.map((def) => {
+              const value = `theme:${def.id}`;
               return (
-                <ThemeOption key={value} active={start === value} onClick={() => setStart(value)} bg={def.vars.bg} bg2={def.vars.bg2} accent={def.vars.accent} title={def.label[locale]} subtitle={def.tagline[locale]} />
+                <BackgroundOption
+                  key={value}
+                  active={start === value}
+                  onClick={() => setStart(value)}
+                  theme={def.id}
+                  title={def.label[locale]}
+                  subtitle={def.tagline[locale]}
+                  locale={locale}
+                />
               );
             })}
           </div>
@@ -176,21 +191,33 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
   );
 }
 
-function ThemeOption({ active, onClick, bg, bg2, accent, title, subtitle }: { active: boolean; onClick: () => void; bg: string; bg2: string; accent: string; title: string; subtitle: string }) {
+function BackgroundOption({
+  active,
+  onClick,
+  theme,
+  title,
+  subtitle,
+  locale,
+}: {
+  active: boolean;
+  onClick: () => void;
+  theme: ThemeId;
+  title: string;
+  subtitle: string;
+  locale: AppLocale;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex items-center gap-3 rounded-2xl border p-3 text-start transition-all",
-        active ? "border-gold bg-gold-soft/50 ring-2 ring-gold/30" : "hover:border-foreground/20",
+        "overflow-hidden rounded-2xl border text-start transition-all",
+        active ? "border-gold ring-2 ring-gold/30" : "hover:border-foreground/25",
       )}
     >
-      <span className="relative size-11 shrink-0 overflow-hidden rounded-xl" style={{ background: `radial-gradient(circle at 30% 20%, ${bg2}, ${bg} 70%)` }}>
-        <span className="absolute inset-x-1.5 bottom-1.5 h-1 rounded-full" style={{ background: accent }} />
-      </span>
-      <span className="min-w-0">
+      <BackdropThumb theme={theme} locale={locale} />
+      <span className="block px-3 py-2">
         <span className="block truncate text-sm font-medium">{title}</span>
         <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>
       </span>

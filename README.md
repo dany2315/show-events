@@ -14,13 +14,13 @@ Ce dépôt implémente le **cahier des charges MVP 1.0** tel que défini (héber
 | Super Admin | `/admin` : création d'associations (+ premier administrateur), forfaits, crédits, suspension, accès à tous les espaces. |
 | Administrateur d'association | Tableau de bord, événements, équipe, modèles, paramètres, Studio, Régie, écran. |
 | Utilisateur Show (`SHOW_OPERATOR`) | Voit uniquement « Mes événements » → Studio Show, Régie Live, Écran géant. Aucune page ni API de gestion. |
-| Création d'événements | Nom, date, objectif, devise, langue, style de départ ou modèle. Lien de diffusion, régie et formulaire créés automatiquement. |
+| Création d'événements | Nom, date, objectif, devise, langue, arrière-plan de départ ou modèle. Lien de diffusion, régie et formulaire créés automatiquement. |
 | Saisie manuelle | Régie : nom, montant, montants rapides (€/$ : 100·500·1 000·5 000 — ₪ : 180·360·1 800·3 600), case « Don fictif » décochée par défaut. |
 | Formulaire mobile | `/d/[jeton]` : nom + montant, sans compte, sans PIN, sans validation ; affiché immédiatement. Anti-robot (champ piège), limite de 5 promesses/min **par téléphone** (cookie anonyme) et plafond anti-inondation de 600/min par IP : des centaines d'invités sur le même Wi-Fi de salle ne se bloquent pas entre eux. |
 | Dons fictifs | Identifiés uniquement côté administration ; affichés et **comptés dans le total** comme les dons réels. Sous-totaux réels / fictifs en interne. |
 | Total du show | Somme de toutes les promesses (réelles + fictives), sans validation préalable. |
 | Régie Live | Total, dernières promesses, ajout, correction, suppression (historisées), célébration, animation objectif, pause des animations, message à l'écran, aperçu en direct. Ordinateur et mobile. |
-| Studio Show | Éditeur visuel 1920×1080 (coordonnées proportionnelles) : déplacement / redimensionnement (react-rnd), calques (dnd-kit), visibilité, couleurs, logo, 5 styles, animations, textes, annuler/rétablir, magnétisme, raccourcis clavier, simulation de don, modèles réutilisables. **Fond d'écran** image, GIF ou vidéo ; **bloc vidéo** (MP4/WebM importé, lien direct, YouTube, Vimeo) ; **mise en page intelligente** (disposition automatique selon les blocs affichés, 5 mises en page, miroir automatique pour l'hébreu, détection et correction des chevauchements) ; liste des dons sur 1 ou 2 colonnes. |
+| Studio Show | Éditeur visuel 1920×1080 (coordonnées proportionnelles) : déplacement / redimensionnement (react-rnd), calques (dnd-kit), visibilité, logo, animations, textes, annuler/rétablir, magnétisme, raccourcis clavier, simulation de don, modèles réutilisables. **Bibliothèque de 14 arrière-plans** conçus par la plateforme (décor CSS / SVG, ambiance animée, palette), présentée en vignettes fidèles ; couleurs d'accent et de texte des éléments modifiables (aucun import de fond personnalisé) ; **bloc vidéo** (MP4/WebM importé, lien direct, YouTube, Vimeo) ; **mise en page intelligente** (disposition automatique selon les blocs affichés, 5 mises en page, miroir automatique pour l'hébreu, détection et correction des chevauchements) ; liste des dons sur 1 ou 2 colonnes. |
 | Écran géant | `/screen/[jeton]` : plein écran, Full HD et 4K, synchronisation temps réel, reconnexion automatique sans perte du total, anti-veille. |
 | Devises et langues | EUR, ILS, USD ; interfaces FR / HE avec RTL complet. |
 | Commercialisation | Paiement par événement (crédits) ou abonnement (mensuel / annuel), gérés par le Super Admin. Le crédit est consommé au **passage en direct** ; créer et tester un événement est gratuit. Pas de paiement en ligne des dons. |
@@ -66,6 +66,31 @@ Puis publication sur Ably (si configuré). Les écrans **ne dépendent jamais un
 
 **Moteur du show** (`src/components/show/`) : *Layout Engine* (`stage.tsx`, `viewport.tsx`), *Animation Engine* (GSAP, confettis, mise en lumière, paliers 25/50/75/100 %), *Live State Engine* (`use-live-event.ts`).
 
+### Studio Show : arrière-plans
+
+Les associations n'importent plus leur propre fond : elles choisissent dans une **bibliothèque d'arrière-plans** conçue par la plateforme (`src/lib/show/themes.ts`, décors dans `src/lib/show/scenes.ts`, rendu par `src/components/show/backdrop.tsx`).
+
+| Arrière-plan | Décor | Ambiance animée |
+| --- | --- | --- |
+| Gala Premium (`gala`) | Noir profond, faisceaux et poussière d'or | paillettes |
+| Rideau de velours (`velours`) | Rideaux rouges drapés, lambrequin à franges dorées, projecteur et plancher de scène | poussières dans le faisceau |
+| Art déco (`artdeco`) | Écailles dorées, cadre à angles à gradins, soleil levant | éclats dorés |
+| Marbre et or (`marbre`) | Marbre ivoire veiné de gris et d'or, double filet doré | reflet qui traverse l'écran |
+| Nuit sur Jérusalem (`jerusalem`) | Ciel étoilé, remparts et coupoles en silhouette, liseré et halo dorés | étoiles scintillantes |
+| Bleu royal (`royal`) | Bleu profond, motif hexagonal, frises dorées | éclats |
+| Émeraude (`emeraude`) | Vert satiné, arabesques dorées dans les angles | paillettes |
+| Aurore boréale (`aurore`) | Voiles de lumière vert et violet, montagnes | voiles qui glissent |
+| Féerie (`feerie`) | Nuit violette, étoiles, nuages | étoiles |
+| Feux d'artifice (`feux`) | Gerbes dorées, roses et turquoise | paillettes |
+| Coucher de soleil (`sunset`) | Dégradé violet → or, soleil couchant, collines | halos |
+| Nature (`nature`) | Vert profond, rameaux de feuilles, rais de lumière | halos |
+| Moderne (`moderne`) | Bleu clair lumineux, cercles, grille de points | rayons et halos |
+| Minimaliste (`minimal`) | Papier crème, cercles fins, filet rouge | — |
+
+- **100 % CSS / SVG inline** (dégradés, dessins SVG en data-URI) : aucun fichier image, aucune ressource externe. Les décors sont statiques ; seule l'ambiance est animée, en `transform` / `opacity` uniquement, avec 20 éléments animés au plus. Le mode économie (`lowPower`, téléphones et « réduire les animations ») coupe l'ambiance.
+- Chaque arrière-plan fournit sa palette (fond, texte, accent, panneaux, QR code, couleurs de l'ambiance). L'association peut modifier l'accent et le texte des éléments ; le décor garde ses couleurs. La propriété `lockedColors` (désactivée partout) prépare la future règle « couleurs imposées ».
+- Les anciennes configurations (fond image / vidéo, assombrissement, couleur de fond) restent lisibles : ces champs sont ignorés à la normalisation.
+
 ## Démarrage
 
 Prérequis : Node 20.19+ (testé avec Node 24), une base Neon.
@@ -93,7 +118,7 @@ Comptes créés par le seed (mots de passe : variables `SEED_*` du `.env`) :
 | `npm run test:e2e` | Tests de bout en bout (Playwright) sur une association de test isolée (`e2e-*`), nettoyée automatiquement. Nécessite `npm run build` au préalable et `npx playwright install chromium`. |
 | `npm run db:migrate` · `db:deploy` · `db:seed` · `db:studio` | Base de données |
 
-Les tests de bout en bout couvrent : régie (réel + fictif, total public), formulaire mobile → écran en temps réel, correction / suppression, message à l'écran, Studio → diffusion du design, export CSV, Utilisateur Show à accès limité, isolation entre associations, Super Admin (création, crédits, suspension), idempotence, anti-robot, limite de débit, collecte terminée, charge (3 galas × 20 promesses simultanées, sans perte ni doublon, totaux ordonnés), pages publiques FR/HE.
+Les tests de bout en bout couvrent : régie (réel + fictif, total public), formulaire mobile → écran en temps réel, correction / suppression, message à l'écran, Studio → diffusion du design et de l'arrière-plan, export CSV, Utilisateur Show à accès limité, isolation entre associations, Super Admin (création, crédits, suspension), idempotence, anti-robot, limite de débit, collecte terminée, charge (3 galas × 20 promesses simultanées, sans perte ni doublon, totaux ordonnés), pages publiques FR/HE.
 
 ## Déploiement (Option B : Vercel + Neon + Ably)
 
