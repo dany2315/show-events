@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Loader2, Plus, Tags, X } from "lucide-react";
+import { Link2, Loader2, Plus, Tags, X } from "lucide-react";
 import { fmt } from "@/i18n/format";
 import { CATEGORY_COLORS, MAX_CATEGORIES, MAX_CATEGORY_NAME_LENGTH, type CategoryDef } from "@/lib/categories";
 import { toast } from "sonner";
@@ -22,7 +22,15 @@ type Props = {
   action: (prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
   mode: "create" | "edit";
   eventId?: string;
-  defaults: { name?: string; date?: string; goalAmount?: number; currency: CurrencyCode; locale: AppLocale; categories?: CategoryDef[] };
+  defaults: {
+    name?: string;
+    date?: string;
+    goalAmount?: number;
+    currency: CurrencyCode;
+    locale: AppLocale;
+    categories?: CategoryDef[];
+    campaignUrl?: string | null;
+  };
   templates?: { id: string; name: string; theme: string }[];
   currencyLocked?: boolean;
   submitLabel: string;
@@ -56,7 +64,7 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
   const [state, formAction, pending] = useActionState(async (prev: ActionResult | null, formData: FormData) => {
     const result = await action(prev, formData);
     if (result.ok) toast.success(t.eventDetail.updated);
-    else toast.error(errorLabel(result.error));
+    else toast.error(result.field === "campaignUrl" ? t.events.campaignUrlInvalid : errorLabel(result.error));
     return result;
   }, null);
 
@@ -152,6 +160,29 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="campaignUrl" className="flex items-center gap-2">
+          <Link2 className="size-4 text-muted-foreground" />
+          {t.events.fieldCampaignUrl} <span className="font-normal text-muted-foreground">({t.common.optional})</span>
+        </Label>
+        <Input
+          id="campaignUrl"
+          name="campaignUrl"
+          type="url"
+          inputMode="url"
+          maxLength={500}
+          defaultValue={defaults.campaignUrl ?? ""}
+          placeholder="https://"
+          className="h-11"
+          dir="ltr"
+          aria-invalid={invalidField === "campaignUrl"}
+          aria-describedby="campaignUrl-help"
+        />
+        <p id="campaignUrl-help" className={cn("text-xs", invalidField === "campaignUrl" ? "text-destructive" : "text-muted-foreground")}>
+          {invalidField === "campaignUrl" ? t.events.campaignUrlInvalid : t.events.fieldCampaignUrlHelp}
+        </p>
       </div>
 
       <CategoriesEditor value={categories} onChange={setCategories} invalid={invalidField === "categories"} />

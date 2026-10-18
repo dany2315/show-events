@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import confetti from "canvas-confetti";
-import { FlaskConical, Heart, Languages, Loader2, Send, ShieldCheck } from "lucide-react";
+import { ArrowRight, FlaskConical, Heart, Languages, Loader2, Send, ShieldCheck } from "lucide-react";
 import { dictionaries } from "@/i18n/dictionaries";
 import { fmt } from "@/i18n/format";
 import { CURRENCY_SYMBOL, formatMoney, parseAmountInput } from "@/lib/money";
@@ -31,7 +31,12 @@ type EventInfo = {
   goalAmount: number;
   status: "DRAFT" | "TEST" | "LIVE" | "ENDED";
   categories: CategoryDef[];
+  /** Page de la campagne de dons (http/https, revalidée côté serveur) : redirection après la promesse. */
+  campaignUrl: string | null;
 };
+
+/** Délai avant la redirection vers la page de la campagne. */
+const REDIRECT_SECONDS = 5;
 
 function newKey() {
   return (crypto.randomUUID?.() ?? `${Date.now()}${Math.random()}`).replace(/[^A-Za-z0-9]/g, "").slice(0, 32);
@@ -70,10 +75,25 @@ export function DonateForm({
   const suggestions = SUGGESTED_AMOUNTS[event.currency];
   const amount = selected ?? parseAmountInput(amountText);
 
+  // Redirection vers la page de la campagne (finalisation du don) : compte à rebours annulable.
+  const [countdown, setCountdown] = useState<number | null>(null);
+
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = locale === "he" ? "rtl" : "ltr";
   }, [locale]);
+
+  useEffect(() => {
+    const target = event.campaignUrl;
+    if (countdown === null || !target) return;
+    if (countdown <= 0) {
+      // Même onglet : le donateur finalise son don sur la page de la campagne.
+      window.location.assign(target);
+      return;
+    }
+    const timer = window.setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown, event.campaignUrl]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -129,6 +149,7 @@ export function DonateForm({
       }
       if (typeof data.total === "number") setTotal(data.total);
       setSuccess({ name: first, amount });
+      if (event.campaignUrl) setCountdown(REDIRECT_SECONDS);
       keyRef.current = newKey();
       const accent = getComputedStyle(document.documentElement).getPropertyValue("--show-accent") || "#e4b65c";
       confetti({ particleCount: 140, spread: 90, origin: { y: 0.65 }, colors: [cssVars["--show-accent"] ?? accent, cssVars["--show-accent2"] ?? "#fff", "#ffffff"], disableForReducedMotion: true });
@@ -204,11 +225,37 @@ export function DonateForm({
             <p className="mt-3" style={{ color: "var(--show-muted)" }}>
               {fmt(t.successText, { amount: formatMoney(success.amount, event.currency, locale) })}
             </p>
+            {event.campaignUrl && (
+              <div className="mt-6 grid gap-3">
+                <p className="text-sm">{t.finalizeHelp}</p>
+                <a
+                  href={event.campaignUrl}
+                  rel="noopener noreferrer"
+                  data-campaign-link
+                  className="flex h-14 items-center justify-center gap-2 rounded-2xl text-base font-semibold shadow-lg transition-transform active:scale-[0.98]"
+                  style={{ background: "var(--show-accent)", color: dark ? "#111" : "#fff" }}
+                >
+                  {t.finalize}
+                  <ArrowRight className="size-5 rtl:-scale-x-100" aria-hidden />
+                </a>
+                {countdown !== null ? (
+                  <div className="grid gap-1 text-sm" style={{ color: "var(--show-muted)" }}>
+                    <p role="status" aria-live="polite">
+                      {fmt(t.redirecting, { seconds: Math.max(0, countdown) })}
+                    </p>
+                    <button type="button" onClick={() => setCountdown(null)} className="mx-auto underline underline-offset-4" style={{ color: "var(--show-text)" }}>
+                      {t.stay}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => {
                 // Coordonnées conservées (même donateur) : seul le montant est à ressaisir.
                 setSuccess(null);
+                setCountdown(null);
                 setAmountText("");
                 setSelected(null);
               }}

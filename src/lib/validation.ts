@@ -132,12 +132,32 @@ export const controlSchema = z.object({
   message: z.string().trim().max(160).optional(),
 });
 
+/** Adresse web acceptée pour une redirection : http ou https uniquement (jamais javascript:, data:…). */
+export function isSafeWebUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && Boolean(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+/** Lien de la campagne de dons (facultatif) : vide = aucun lien. */
+export const campaignUrlSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .optional()
+  .transform((v) => v || null)
+  .refine((v) => v === null || isSafeWebUrl(v), "Lien invalide");
+
 export const eventInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
   date: z.coerce.date(),
   goalAmount: z.coerce.number().int().positive().max(MAX_GOAL_AMOUNT),
   currency: z.enum(CURRENCIES),
   locale: z.enum(LOCALES),
+  campaignUrl: campaignUrlSchema,
 });
 
 export const slugSchema = z

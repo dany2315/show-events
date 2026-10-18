@@ -6,6 +6,7 @@ import { computeTotals } from "@/lib/live/server";
 import { normalizeShowConfig } from "@/lib/show/config";
 import { themeCssVars, THEMES } from "@/lib/show/themes";
 import { getI18n } from "@/i18n/server";
+import { isSafeWebUrl } from "@/lib/validation";
 import { DonateForm } from "./donate-form";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default async function DonatePage({ params }: PageProps<"/d/[token]">) {
           locale: true,
           goalAmount: true,
           status: true,
+          campaignUrl: true,
           logoUrl: true,
           organization: { select: { name: true, logoUrl: true, status: true } },
           layout: { select: { config: true } },
@@ -60,6 +62,8 @@ export default async function DonatePage({ params }: PageProps<"/d/[token]">) {
         goalAmount: event.goalAmount,
         status: event.status,
         categories: event.categories,
+        // Revalidé à l'affichage : seule une adresse http(s) peut servir de redirection.
+        campaignUrl: event.campaignUrl && isSafeWebUrl(event.campaignUrl) ? event.campaignUrl : null,
       }}
       initialTotal={totals.total}
       cssVars={themeCssVars(config)}

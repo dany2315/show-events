@@ -35,6 +35,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
       currency: true,
       locale: true,
       status: true,
+      campaignUrl: true,
       categories: { orderBy: { position: "asc" }, select: { id: true, name: true, color: true } },
     },
   });
@@ -187,6 +188,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
                   currency: event.currency,
                   locale: event.locale,
                   categories: event.categories,
+                  campaignUrl: event.campaignUrl,
                 }}
                 currencyLocked={regie.count > 0}
                 submitLabel={t.common.save}

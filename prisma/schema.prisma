@@ -179,6 +179,8 @@ model Event {
   status           EventStatus   @default(DRAFT)
   /// Logo spécifique à l'événement (sinon celui de l'association)
   logoUrl          String?
+  /// Page de la campagne de dons (http/https) : le donateur y est redirigé après sa promesse.
+  campaignUrl      String?
   /// État de pilotage du direct : { paused, overlay, overlayAt }
   liveControl      Json          @default("{}")
   /// Compteurs du direct, maintenus atomiquement à chaque écriture de promesse

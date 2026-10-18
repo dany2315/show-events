@@ -69,6 +69,8 @@ export async function createEvent(input: {
   theme?: ThemeId | null;
   isSuperAdmin?: boolean;
   categories?: CategoryInput[];
+  /** Page de la campagne de dons (validée http/https en amont). */
+  campaignUrl?: string | null;
 }) {
   const event = await prisma.$transaction(async (tx) => {
     const org = await tx.organization.findUniqueOrThrow({
@@ -98,6 +100,7 @@ export async function createEvent(input: {
         goalAmount: input.goalAmount,
         currency: input.currency,
         locale: input.locale,
+        campaignUrl: input.campaignUrl ?? null,
         layout: { create: { config: config as unknown as Prisma.InputJsonValue } },
       },
       select: { id: true },

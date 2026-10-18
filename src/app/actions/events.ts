@@ -44,6 +44,7 @@ export async function createEventAction(organizationId: string, _prev: ActionRes
       goalAmount: String(formData.get("goalAmount") ?? "").replace(/[\s  .,]/g, ""),
       currency: formData.get("currency"),
       locale: formData.get("locale"),
+      campaignUrl: formData.get("campaignUrl") ?? undefined,
     });
     const start = String(formData.get("start") ?? "theme:gala");
     const [kind, value] = start.split(":");
@@ -78,6 +79,7 @@ export async function updateEventAction(_prev: ActionResult | null, formData: Fo
       goalAmount: String(formData.get("goalAmount") ?? "").replace(/[\s  .,]/g, ""),
       currency: formData.get("currency"),
       locale: formData.get("locale"),
+      campaignUrl: formData.get("campaignUrl") ?? undefined,
     });
     const categories = parseCategoriesField(formData.get("categories"));
     const { user, event } = await assertEventAccess(input.eventId, "event.manage");
@@ -92,6 +94,7 @@ export async function updateEventAction(_prev: ActionResult | null, formData: Fo
           date: input.date,
           goalAmount: input.goalAmount,
           locale: input.locale,
+          campaignUrl: input.campaignUrl,
           // La devise est figée dès qu'une promesse existe (montants enregistrés dans cette devise).
           ...(hasDonations ? {} : { currency: input.currency }),
         },

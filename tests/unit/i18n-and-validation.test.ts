@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fr } from "@/i18n/fr";
 import { he } from "@/i18n/he";
 import { fmt } from "@/i18n/format";
-import { manualDonationSchema, publicDonationSchema, slugify, slugSchema } from "@/lib/validation";
+import { campaignUrlSchema, isSafeWebUrl, manualDonationSchema, publicDonationSchema, slugify, slugSchema } from "@/lib/validation";
 import { deriveAccessToken, generateTempPassword, hashToken, newAccessId } from "@/lib/tokens";
 
 function leaves(obj: unknown, prefix = ""): string[] {
@@ -68,6 +68,16 @@ describe("validation", () => {
     expect(manualDonationSchema.safeParse({ firstName: "David", amount: 100, idempotencyKey: "abcdef123456" }).success).toBe(false);
     expect(manualDonationSchema.safeParse({ anonymous: true, amount: 100, idempotencyKey: "abcdef123456" }).success).toBe(true);
     expect(manualDonationSchema.safeParse({ firstName: "D", lastName: "L", phone: "12", amount: 100, idempotencyKey: "abcdef123456" }).success).toBe(false);
+  });
+  it("lien de la campagne : http(s) uniquement, facultatif", () => {
+    expect(campaignUrlSchema.parse("https://exemple.org/campagne?ref=gala")).toBe("https://exemple.org/campagne?ref=gala");
+    expect(campaignUrlSchema.parse("http://exemple.org")).toBe("http://exemple.org");
+    expect(campaignUrlSchema.parse("")).toBeNull();
+    expect(campaignUrlSchema.parse(undefined)).toBeNull();
+    for (const bad of ["javascript:alert(1)", "data:text/html,<b>x</b>", "ftp://exemple.org", "exemple.org", "https://user:pw@exemple.org", "https://"]) {
+      expect(campaignUrlSchema.safeParse(bad).success, bad).toBe(false);
+      expect(isSafeWebUrl(bad), bad).toBe(false);
+    }
   });
   it("génère des identifiants d'URL propres", () => {
     expect(slugify("Espoir pour Demain — Gala 2026 !")).toBe("espoir-pour-demain-gala-2026");
