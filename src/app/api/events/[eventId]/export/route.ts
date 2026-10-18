@@ -21,6 +21,11 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/events/[eve
       select: {
         createdAt: true,
         donorName: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        isAnonymous: true,
         amount: true,
         currency: true,
         isFictitious: true,
@@ -29,11 +34,17 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/events/[eve
         createdBy: { select: { name: true } },
       },
     });
-    const header = ["Date", "Donateur", "Montant", "Devise", "Type", "Source", "Saisi par"];
+    // Coordonnées des donateurs : export réservé aux administrateurs (event.manage).
+    const header = ["Date", "Nom affiché", "Prénom", "Nom", "Téléphone", "E-mail", "Anonyme", "Montant", "Devise", "Type", "Source", "Saisi par"];
     const lines = rows.map((r) =>
       [
         r.createdAt.toISOString(),
         r.donorName,
+        r.firstName ?? "",
+        r.lastName ?? "",
+        r.phone ?? "",
+        r.email ?? "",
+        r.isAnonymous ? "Oui" : "Non",
         r.amount,
         r.currency,
         r.isTest ? "Test" : r.isFictitious ? "Fictif" : "Réel",

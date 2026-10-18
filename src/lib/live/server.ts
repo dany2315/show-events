@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "../prisma";
 import { normalizeShowConfig } from "../show/config";
 import { getAbly } from "./ably";
+import { toPublicDonation } from "./public";
 import {
   channelName,
   EMPTY_CONTROL,
@@ -11,7 +12,6 @@ import {
   type LiveMessage,
   type LiveMessageInput,
   type LiveSnapshot,
-  type PublicDonation,
 } from "./types";
 
 type Tx = Prisma.TransactionClient;
@@ -93,9 +93,7 @@ export async function flushOutbox(eventId: string) {
   return { published };
 }
 
-export function toPublicDonation(d: { id: string; donorName: string; amount: number; createdAt: Date }): PublicDonation {
-  return { id: d.id, donorName: d.donorName, amount: d.amount, createdAt: d.createdAt.toISOString() };
-}
+export { toPublicDonation };
 
 export function parseControl(value: unknown): LiveControl {
   if (!value || typeof value !== "object") return { ...EMPTY_CONTROL };

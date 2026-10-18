@@ -116,10 +116,19 @@ async function ensureEvent(input: {
   const start = Date.now() - input.donations.length * 90_000;
   let i = 0;
   for (const [donorName, amount, fictitious] of input.donations) {
+    // Prénom / nom et coordonnées fictives (domaine réservé .test) pour la démonstration.
+    const anonymous = donorName === "Anonyme" || donorName === "אנונימי";
+    const [firstName, ...rest] = anonymous ? [null] : donorName.split(" ");
+    const mobile = i % 3 === 0;
     await prisma.donation.create({
       data: {
         eventId: event.id,
         donorName,
+        firstName,
+        lastName: anonymous ? null : rest.join(" ") || null,
+        isAnonymous: anonymous,
+        phone: mobile ? `+3360000${String(1000 + i).slice(-4)}` : null,
+        email: mobile ? `donateur${i + 1}@exemple.test` : null,
         amount,
         currency: input.currency,
         isFictitious: Boolean(fictitious),

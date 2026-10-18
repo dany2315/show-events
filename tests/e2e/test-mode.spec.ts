@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { expect, request as playwrightRequest, test } from "@playwright/test";
-import { key, login, publicDonor, state } from "./helpers";
+import { fillPublicDonor, fillRegieDonor, key, login, publicDonor, state } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -38,7 +38,7 @@ test.describe("mode test limité à 10 promesses", () => {
     await expect(page.locator("[data-test-count]")).toHaveText("10/10 promesses de test");
 
     // La Régie est refusée elle aussi, avec un message clair
-    await fillRegieDonor(page, "Saisie Régie");
+    await fillRegieDonor(page, "Saisie", "Régie");
     await page.getByLabel("Montant", { exact: true }).fill("100");
     await page.getByRole("button", { name: /Ajouter au show/ }).click();
     await expect(page.getByText(/Limite du mode test atteinte \(10 promesses\)/)).toBeVisible();
@@ -55,18 +55,10 @@ test.describe("mode test limité à 10 promesses", () => {
     // … et le formulaire public est de nouveau bloqué, avec un message explicite
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await phone.goto(`/d/${s.rehearsal.formToken}`);
-    await fillPublicDonor(phone, "Invité Tardif");
+    await fillPublicDonor(phone, "Invité", "Tardif");
     await phone.getByRole("button", { name: "100 €", exact: true }).click();
     await phone.getByRole("button", { name: /Envoyer ma promesse/ }).click();
     await expect(phone.locator("form [role=alert]")).toContainText("la limite de 10 promesses de test est atteinte");
     await phone.close();
   });
 });
-
-async function fillRegieDonor(page: import("@playwright/test").Page, name: string) {
-  await page.getByLabel("Nom du donateur").fill(name);
-}
-
-async function fillPublicDonor(page: import("@playwright/test").Page, name: string) {
-  await page.getByPlaceholder("Ex. Famille Cohen").fill(name);
-}

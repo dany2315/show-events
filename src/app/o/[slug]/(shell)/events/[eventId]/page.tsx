@@ -14,7 +14,7 @@ import { deleteEventAction, updateEventAction } from "@/app/actions/events";
 import { requireOrg } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getEventLinks } from "@/lib/event-access";
-import { getRegieState } from "@/lib/regie";
+import { getAdminDonations, getRegieState } from "@/lib/regie";
 import { formatMoney, formatPercent, goalProgress } from "@/lib/money";
 import { formatDate, formatShortDate, formatTime } from "@/lib/dates";
 import { getI18n } from "@/i18n/server";
@@ -32,9 +32,11 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
   if (!event) notFound();
 
   const donationIds = (await prisma.donation.findMany({ where: { eventId: event.id }, select: { id: true } })).map((d) => d.id);
-  const [links, regie, eventHistory] = await Promise.all([
+  const [links, regie, donations, eventHistory] = await Promise.all([
     getEventLinks(event.id),
-    getRegieState(event.id, 500),
+    getRegieState(event.id, 0),
+    // Fiche réservée aux administrateurs (org.view) : coordonnées des donateurs visibles ici seulement.
+    getAdminDonations(event.id, 500),
     prisma.auditLog.findMany({
       where: { organizationId: ctx.org.id, entityType: "Donation", entityId: { in: donationIds } },
       orderBy: { createdAt: "desc" },
@@ -154,7 +156,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
       <section className="mt-10">
         <h2 className="text-lg font-semibold">{t.eventDetail.donationsList}</h2>
         <div className="mt-4">
-          <DonationsTable donations={regie.donations} currency={event.currency} exportUrl={canManage ? `/api/events/${event.id}/export` : undefined} />
+          <DonationsTable donations={donations} currency={event.currency} exportUrl={canManage ? `/api/events/${event.id}/export` : undefined} />
         </div>
       </section>
 

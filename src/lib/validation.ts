@@ -1,32 +1,116 @@
 import { z } from "zod";
-import { CURRENCIES, LOCALES, MAX_DONATION_AMOUNT, MAX_DONOR_NAME_LENGTH, MAX_GOAL_AMOUNT, MEMBER_ROLES, PLAN_TYPES, SUBSCRIPTION_STATUSES } from "./constants";
+import {
+  CURRENCIES,
+  LOCALES,
+  MAX_DONATION_AMOUNT,
+  MAX_EMAIL_LENGTH,
+  MAX_GOAL_AMOUNT,
+  MAX_PERSON_NAME_LENGTH,
+  MAX_PHONE_INPUT_LENGTH,
+  MEMBER_ROLES,
+  PLAN_TYPES,
+  SUBSCRIPTION_STATUSES,
+} from "./constants";
+import { normalizePhone } from "./donor";
 
 const amount = z.coerce.number().int().positive().max(MAX_DONATION_AMOUNT);
-const donorName = z.string().trim().min(1).max(MAX_DONOR_NAME_LENGTH);
 const idempotencyKey = z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/);
 
+/** Prénom / Nom du donateur. */
+const personName = z.string().trim().min(1).max(MAX_PERSON_NAME_LENGTH);
+/** Champ texte facultatif : une chaîne vide vaut « non renseigné ». */
+const optionalPersonName = z
+  .string()
+  .trim()
+  .max(MAX_PERSON_NAME_LENGTH)
+  .optional()
+  .transform((v) => v || undefined);
+
+/** Téléphone international souple (chiffres, espaces, +, -, parenthèses ; 6 à 20 chiffres), normalisé. */
+export const phoneSchema = z
+  .string()
+  .trim()
+  .max(MAX_PHONE_INPUT_LENGTH)
+  .transform((value, ctx) => {
+    const phone = normalizePhone(value);
+    if (!phone) {
+      ctx.addIssue({ code: "custom", message: "Téléphone invalide" });
+      return z.NEVER;
+    }
+    return phone;
+  });
+
+const optionalPhone = z
+  .string()
+  .trim()
+  .max(MAX_PHONE_INPUT_LENGTH)
+  .optional()
+  .transform((value, ctx) => {
+    if (!value) return undefined;
+    const phone = normalizePhone(value);
+    if (!phone) {
+      ctx.addIssue({ code: "custom", message: "Téléphone invalide" });
+      return z.NEVER;
+    }
+    return phone;
+  });
+
+/** E-mail facultatif, valide s'il est fourni. */
+export const optionalEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(MAX_EMAIL_LENGTH)
+  .optional()
+  .refine((v) => !v || z.email().safeParse(v).success, "E-mail invalide")
+  .transform((v) => v || undefined);
+
+/**
+ * Formulaire public : prénom, nom et téléphone obligatoires, e-mail facultatif.
+ * « Anonyme » : le nom n'est pas affiché sur l'écran (les coordonnées restent transmises à l'organisateur).
+ */
 export const publicDonationSchema = z.object({
-  donorName,
+  firstName: personName,
+  lastName: personName,
+  phone: phoneSchema,
+  email: optionalEmailSchema,
+  anonymous: z.boolean().default(false),
   amount,
   idempotencyKey,
   /** Champ piège invisible : rempli uniquement par les robots. */
   website: z.string().max(200).optional(),
 });
 
-export const manualDonationSchema = z.object({
-  donorName,
-  amount,
-  isFictitious: z.boolean().default(false),
-  idempotencyKey,
-});
+/**
+ * Saisie Régie : l'opérateur saisit vite pendant le direct, téléphone et e-mail sont facultatifs.
+ * Prénom et nom sont obligatoires, sauf pour un donateur annoncé « Anonyme » (souvent inconnu).
+ */
+export const manualDonationSchema = z
+  .object({
+    firstName: optionalPersonName,
+    lastName: optionalPersonName,
+    phone: optionalPhone,
+    email: optionalEmailSchema,
+    anonymous: z.boolean().default(false),
+    amount,
+    isFictitious: z.boolean().default(false),
+    idempotencyKey,
+  })
+  .superRefine((v, ctx) => {
+    if (v.anonymous) return;
+    if (!v.firstName) ctx.addIssue({ code: "custom", path: ["firstName"], message: "Prénom requis" });
+    if (!v.lastName) ctx.addIssue({ code: "custom", path: ["lastName"], message: "Nom requis" });
+  });
 
 export const updateDonationSchema = z
   .object({
-    donorName: donorName.optional(),
+    firstName: optionalPersonName,
+    lastName: optionalPersonName,
+    anonymous: z.boolean().optional(),
     amount: amount.optional(),
     isFictitious: z.boolean().optional(),
   })
-  .refine((v) => Object.keys(v).length > 0);
+  .refine((v) => Object.values(v).some((x) => x !== undefined));
 
 export const controlSchema = z.object({
   action: z.enum(["pause", "resume", "overlay", "clearOverlay", "celebrate", "goal"]),

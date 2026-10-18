@@ -3,9 +3,29 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./prisma";
 import { appendOutbox, computeTotals, lockEvent, toPublicDonation } from "./live/server";
-import { MAX_DONATION_AMOUNT, MAX_DONOR_NAME_LENGTH, PUBLIC_RATE_LIMIT } from "./constants";
+import { MAX_DONATION_AMOUNT, MAX_EMAIL_LENGTH, MAX_PERSON_NAME_LENGTH, PUBLIC_RATE_LIMIT, type AppLocale } from "./constants";
 import { audit } from "./audit";
 import { TEST_DONATION_LIMIT } from "./lifecycle";
+import { cleanText, displayDonorName, normalizePhone, sanitizeDonorName } from "./donor";
+import { dictionaries } from "@/i18n/dictionaries";
+
+export { sanitizeDonorName };
+
+/** Libellé « Anonyme » dans la langue de l'événement (celle de l'écran). */
+export function anonymousLabel(locale: AppLocale) {
+  return dictionaries[locale].regie.anonymous;
+}
+
+type DonorIdentity = { firstName: string | null; lastName: string | null; anonymous: boolean };
+
+/** Prénom / nom nettoyés ; exigés sauf pour un donateur anonyme. */
+function cleanIdentity(input: { firstName?: string | null; lastName?: string | null; anonymous?: boolean }): DonorIdentity {
+  const firstName = cleanText(input.firstName ?? "", MAX_PERSON_NAME_LENGTH) || null;
+  const lastName = cleanText(input.lastName ?? "", MAX_PERSON_NAME_LENGTH) || null;
+  const anonymous = Boolean(input.anonymous);
+  if (!anonymous && (!firstName || !lastName)) throw new DonationError("INVALID", "Prénom et nom requis");
+  return { firstName, lastName, anonymous };
+}
 
 export class DonationError extends Error {
   constructor(
@@ -24,17 +44,15 @@ export class DonationError extends Error {
   }
 }
 
-export function sanitizeDonorName(raw: string) {
-  return raw
-    .replace(/[\u0000-\u001f\u007f<>]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_DONOR_NAME_LENGTH);
-}
-
 export type RecordDonationInput = {
   eventId: string;
-  donorName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  /** Coordonnées : réservées aux administrateurs, jamais diffusées. */
+  phone?: string | null;
+  email?: string | null;
+  /** Affiché « Anonyme » sur l'écran. */
+  anonymous?: boolean;
   amount: number;
   isFictitious: boolean;
   source: "MANUAL" | "MOBILE";
@@ -72,8 +90,12 @@ type InsertedRow = {
  * impossible de dépasser la limite, même avec des envois simultanés.
  */
 export async function recordDonation(input: RecordDonationInput) {
-  const donorName = sanitizeDonorName(input.donorName);
-  if (!donorName) throw new DonationError("INVALID", "Nom requis");
+  const identity = cleanIdentity(input);
+  // Nom affiché : « Prénom Nom », ou « Anonyme » dans la langue de l'événement (résolu en SQL).
+  const shownName = identity.anonymous ? null : displayDonorName(identity, "");
+  const phone = input.phone ? normalizePhone(input.phone) : null;
+  if (input.phone && !phone) throw new DonationError("INVALID", "Téléphone invalide");
+  const email = input.email ? input.email.trim().toLowerCase().slice(0, MAX_EMAIL_LENGTH) : null;
   if (!Number.isInteger(input.amount) || input.amount <= 0 || input.amount > MAX_DONATION_AMOUNT) {
     throw new DonationError("INVALID", "Montant invalide");
   }
@@ -108,14 +130,18 @@ export async function recordDonation(input: RecordDonationInput) {
             WHERE d."eventId" = e.id AND d."deviceHash" = ${deviceHash}::text
               AND d."createdAt" > (now() AT TIME ZONE 'UTC') - make_interval(secs => ${windowSeconds}::int)
           ) < ${PUBLIC_RATE_LIMIT.perDevice}::int)
-        RETURNING e.id, e.currency, e.status, e."liveTotal", e."liveCount"
+        RETURNING e.id, e.currency, e.status, e.locale, e."liveTotal", e."liveCount"
       ), ins AS (
-        INSERT INTO "donation" (id, "eventId", "donorName", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "deviceHash", "createdById", "createdAt", "updatedAt")
-        SELECT ${id}, ev.id, ${donorName}, ${input.amount}::int, ev.currency, ${isFictitious}::boolean, ev.status = 'TEST', ${input.source}::"DonationSource",
+        INSERT INTO "donation" (id, "eventId", "donorName", "firstName", "lastName", phone, email, "isAnonymous", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "deviceHash", "createdById", "createdAt", "updatedAt")
+        SELECT ${id}, ev.id,
+               COALESCE(${shownName}::text, CASE WHEN ev.locale = 'he' THEN ${anonymousLabel("he")}::text ELSE ${anonymousLabel("fr")}::text END),
+               ${identity.firstName}::text, ${identity.lastName}::text, ${phone}::text, ${email}::text, ${identity.anonymous}::boolean,
+               ${input.amount}::int, ev.currency, ${isFictitious}::boolean, ev.status = 'TEST', ${input.source}::"DonationSource",
                ${key}::text, ${ipHash}::text, ${deviceHash}::text, ${input.createdById ?? null}::text, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC'
         FROM ev
         RETURNING id, "donorName", amount, "isFictitious", "createdAt"
       ), ob AS (
+        -- Charge utile publique (écrans, temps réel) : jamais de coordonnées du donateur.
         INSERT INTO "outbox_event" ("eventId", type, payload, attempts, "createdAt")
         SELECT ev.id, 'donation.created',
           jsonb_build_object(
@@ -159,7 +185,10 @@ function isUniqueViolation(error: unknown) {
 }
 
 async function existingResult(eventId: string, key: string) {
-  const existing = await prisma.donation.findUnique({ where: { eventId_idempotencyKey: { eventId, idempotencyKey: key } } });
+  const existing = await prisma.donation.findUnique({
+    where: { eventId_idempotencyKey: { eventId, idempotencyKey: key } },
+    select: { id: true, donorName: true, amount: true, isFictitious: true, createdAt: true },
+  });
   if (!existing) throw new DonationError("INVALID", "Promesse introuvable");
   const totals = await computeTotals(prisma, eventId);
   return { donation: existing, ...totals, duplicate: true };
@@ -190,7 +219,10 @@ export async function updateDonation(input: {
   eventId: string;
   actorId: string;
   organizationId: string;
-  donorName?: string;
+  /** Identité : envoyée en bloc (prénom, nom, anonymat) ; un nom absent est effacé. */
+  firstName?: string;
+  lastName?: string;
+  anonymous?: boolean;
   amount?: number;
   isFictitious?: boolean;
 }) {
@@ -199,10 +231,13 @@ export async function updateDonation(input: {
     const before = await tx.donation.findFirst({ where: { id: input.donationId, eventId: input.eventId, deletedAt: null } });
     if (!before) throw new DonationError("NOT_FOUND", "Promesse introuvable");
     const data: Prisma.DonationUpdateInput = {};
-    if (input.donorName !== undefined) {
-      const name = sanitizeDonorName(input.donorName);
-      if (!name) throw new DonationError("INVALID", "Nom requis");
-      data.donorName = name;
+    if (input.firstName !== undefined || input.lastName !== undefined || input.anonymous !== undefined) {
+      const identity = cleanIdentity({ firstName: input.firstName, lastName: input.lastName, anonymous: input.anonymous ?? before.isAnonymous });
+      const event = await tx.event.findUniqueOrThrow({ where: { id: input.eventId }, select: { locale: true } });
+      data.firstName = identity.firstName;
+      data.lastName = identity.lastName;
+      data.isAnonymous = identity.anonymous;
+      data.donorName = displayDonorName(identity, anonymousLabel(event.locale))!;
     }
     if (input.amount !== undefined) {
       if (!Number.isInteger(input.amount) || input.amount <= 0 || input.amount > MAX_DONATION_AMOUNT) {

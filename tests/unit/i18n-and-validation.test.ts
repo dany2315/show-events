@@ -42,15 +42,32 @@ describe("traductions français / hébreu", () => {
 });
 
 describe("validation", () => {
+  const donor = { firstName: "Sarah", lastName: "Cohen", phone: "+33 6 12 34 56 78" };
   it("valide une promesse publique", () => {
-    expect(publicDonationSchema.safeParse({ donorName: "Famille Cohen", amount: "500", idempotencyKey: "abcdef123456" }).success).toBe(true);
-    expect(publicDonationSchema.safeParse({ donorName: "", amount: 500, idempotencyKey: "abcdef123456" }).success).toBe(false);
-    expect(publicDonationSchema.safeParse({ donorName: "A", amount: 0, idempotencyKey: "abcdef123456" }).success).toBe(false);
-    expect(publicDonationSchema.safeParse({ donorName: "A", amount: 5, idempotencyKey: "<script>" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, amount: "500", idempotencyKey: "abcdef123456" }).success).toBe(true);
+    expect(publicDonationSchema.safeParse({ ...donor, firstName: "", amount: 500, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, lastName: " ", amount: 500, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, amount: 0, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, amount: 5, idempotencyKey: "<script>" }).success).toBe(false);
   });
-  it("le don fictif est décoché par défaut", () => {
-    const parsed = manualDonationSchema.parse({ donorName: "Test", amount: 100, idempotencyKey: "abcdef123456" });
+  it("formulaire public : téléphone obligatoire et normalisé, e-mail facultatif mais valide", () => {
+    const parsed = publicDonationSchema.parse({ ...donor, email: "  Sarah@Exemple.FR ", amount: 500, idempotencyKey: "abcdef123456" });
+    expect(parsed.phone).toBe("+33612345678");
+    expect(parsed.email).toBe("sarah@exemple.fr");
+    expect(parsed.anonymous).toBe(false);
+    expect(publicDonationSchema.parse({ ...donor, email: "", amount: 5, idempotencyKey: "abcdef123456" }).email).toBeUndefined();
+    expect(publicDonationSchema.safeParse({ firstName: "Sarah", lastName: "Cohen", amount: 5, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, phone: "abc", amount: 5, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, email: "pas-un-email", amount: 5, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(publicDonationSchema.safeParse({ ...donor, firstName: "x".repeat(41), amount: 5, idempotencyKey: "abcdef123456" }).success).toBe(false);
+  });
+  it("Régie : téléphone et e-mail facultatifs, nom facultatif seulement pour un anonyme", () => {
+    const parsed = manualDonationSchema.parse({ firstName: "David", lastName: "Lévy", phone: "", email: "", amount: 100, idempotencyKey: "abcdef123456" });
     expect(parsed.isFictitious).toBe(false);
+    expect(parsed.phone).toBeUndefined();
+    expect(manualDonationSchema.safeParse({ firstName: "David", amount: 100, idempotencyKey: "abcdef123456" }).success).toBe(false);
+    expect(manualDonationSchema.safeParse({ anonymous: true, amount: 100, idempotencyKey: "abcdef123456" }).success).toBe(true);
+    expect(manualDonationSchema.safeParse({ firstName: "D", lastName: "L", phone: "12", amount: 100, idempotencyKey: "abcdef123456" }).success).toBe(false);
   });
   it("génère des identifiants d'URL propres", () => {
     expect(slugify("Espoir pour Demain — Gala 2026 !")).toBe("espoir-pour-demain-gala-2026");

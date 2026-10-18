@@ -204,7 +204,16 @@ model Event {
 model Donation {
   id             String         @id @default(cuid())
   eventId        String
+  /// Nom affiché sur l'écran (« Prénom Nom », ou « Anonyme »), calculé à l'enregistrement.
   donorName      String
+  /// Coordonnées du donateur (nulles pour les anciennes promesses).
+  /// Téléphone et e-mail : visibles uniquement par les administrateurs, jamais diffusés.
+  firstName      String?
+  lastName       String?
+  phone          String?
+  email          String?
+  /// Le donateur a choisi d'apparaître comme « Anonyme » sur l'écran.
+  isAnonymous    Boolean        @default(false)
   amount         Int
   currency       Currency
   isFictitious   Boolean        @default(false)

@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Eye,
+  EyeOff,
   FlaskConical,
   Keyboard,
   Loader2,
@@ -46,7 +47,8 @@ import { EventStatusBadge } from "@/components/app/event-status-badge";
 import { useI18n } from "@/i18n/client";
 import { fmt } from "@/i18n/format";
 import { formatMoney, formatPercent, goalProgress, parseAmountInput, CURRENCY_SYMBOL } from "@/lib/money";
-import { MAX_DONATION_AMOUNT, QUICK_AMOUNTS } from "@/lib/constants";
+import { MAX_DONATION_AMOUNT, MAX_EMAIL_LENGTH, MAX_PERSON_NAME_LENGTH, MAX_PHONE_INPUT_LENGTH, QUICK_AMOUNTS } from "@/lib/constants";
+import { looksLikeEmail, normalizePhone, splitDonorName } from "@/lib/donor";
 import type { LiveSnapshot } from "@/lib/live/types";
 import type { AdminDonation, RegieState } from "@/lib/regie";
 import { cn } from "@/lib/utils";
@@ -270,35 +272,60 @@ function StatusBanner({ eventId, status, isSuperAdmin, count }: { eventId: strin
 
 function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string; currency: "EUR" | "ILS" | "USD"; onAdded: () => void; open: boolean }) {
   const { t, locale } = useI18n();
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [amountText, setAmountText] = useState("");
   const [fictitious, setFictitious] = useState(false);
   const [pending, setPending] = useState(false);
   const keyRef = useRef(newKey());
   const hydrated = useHydrated();
-  const nameRef = useRef<HTMLInputElement>(null);
+  const firstRef = useRef<HTMLInputElement>(null);
+  const lastRef = useRef<HTMLInputElement>(null);
   const amount = parseAmountInput(amountText);
   const quick = QUICK_AMOUNTS[currency];
 
   async function submit(event?: React.FormEvent) {
     event?.preventDefault();
     if (pending) return;
-    const donorName = name.trim();
-    if (!donorName) {
-      nameRef.current?.focus();
-      toast.error(t.donate.errorName);
+    const first = firstName.trim();
+    const last = lastName.trim();
+    // Donateur annoncé « Anonyme » : souvent inconnu de l'opérateur, prénom et nom deviennent facultatifs.
+    if (!anonymous && (!first || !last)) {
+      (first ? lastRef : firstRef).current?.focus();
+      toast.error(first ? t.donate.errorLastName : t.donate.errorFirstName);
+      return;
+    }
+    if (phone.trim() && !normalizePhone(phone)) {
+      toast.error(t.donate.errorPhone);
+      return;
+    }
+    if (email.trim() && !looksLikeEmail(email)) {
+      toast.error(t.donate.errorEmail);
       return;
     }
     if (!amount || amount > MAX_DONATION_AMOUNT) {
       toast.error(t.donate.errorAmount);
       return;
     }
+    const donorName = anonymous ? t.regie.anonymous : `${first} ${last}`;
     setPending(true);
     try {
       const res = await fetch(`/api/events/${eventId}/donations`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ donorName, amount, isFictitious: fictitious, idempotencyKey: keyRef.current }),
+        body: JSON.stringify({
+          firstName: first,
+          lastName: last,
+          anonymous,
+          phone: phone.trim(),
+          email: email.trim(),
+          amount,
+          isFictitious: fictitious,
+          idempotencyKey: keyRef.current,
+        }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { code?: string };
@@ -319,11 +346,15 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
       }
       toast.success(fmt(t.regie.added, { name: donorName, amount: formatMoney(amount, currency, locale) }));
       keyRef.current = newKey();
-      setName("");
+      setFirstName("");
+      setLastName("");
+      setAnonymous(false);
+      setPhone("");
+      setEmail("");
       setAmountText("");
       setFictitious(false);
       onAdded();
-      nameRef.current?.focus();
+      firstRef.current?.focus();
     } catch {
       // La clé d'idempotence est conservée : un nouvel essai ne créera pas de doublon.
       toast.error(t.common.errorNetwork);
@@ -339,23 +370,54 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
         {t.regie.addTitle}
       </h2>
 
-      <div className="mt-5 grid gap-2">
-        <Label htmlFor="donor">{t.regie.donorName}</Label>
-        <div className="flex gap-2">
-          <Input
-            id="donor"
-            ref={nameRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t.regie.donorNamePlaceholder}
-            maxLength={60}
-            autoComplete="off"
-            className="h-12 text-base"
-          />
-          <Button type="button" variant="secondary" className="h-12 shrink-0" onClick={() => setName(t.regie.anonymous)}>
+      <div className="mt-5 grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium">{t.regie.donor}</span>
+          <Button
+            type="button"
+            variant={anonymous ? "default" : "secondary"}
+            size="sm"
+            className="h-8 rounded-full"
+            aria-pressed={anonymous}
+            onClick={() => setAnonymous((v) => !v)}
+          >
+            <EyeOff className="size-3.5" />
             {t.regie.anonymous}
           </Button>
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="donor-first" className="text-xs text-muted-foreground">
+              {t.donate.firstName}
+            </Label>
+            <Input
+              id="donor-first"
+              ref={firstRef}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder={t.regie.firstNamePlaceholder}
+              maxLength={MAX_PERSON_NAME_LENGTH}
+              autoComplete="off"
+              className="h-12 text-base"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="donor-last" className="text-xs text-muted-foreground">
+              {t.donate.lastName}
+            </Label>
+            <Input
+              id="donor-last"
+              ref={lastRef}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder={t.regie.lastNamePlaceholder}
+              maxLength={MAX_PERSON_NAME_LENGTH}
+              autoComplete="off"
+              className="h-12 text-base"
+            />
+          </div>
+        </div>
+        {anonymous && <p className="text-xs text-muted-foreground">{t.regie.anonymousHelp}</p>}
       </div>
 
       <div className="mt-4 grid gap-2">
@@ -393,6 +455,41 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
             {t.common.cancel}
           </button>
         )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="donor-phone" className="text-xs text-muted-foreground">
+            {t.donate.phone} <span className="font-normal">({t.common.optional})</span>
+          </Label>
+          <Input
+            id="donor-phone"
+            type="tel"
+            inputMode="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={MAX_PHONE_INPUT_LENGTH}
+            autoComplete="off"
+            dir="ltr"
+            className="h-10"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="donor-email" className="text-xs text-muted-foreground">
+            {t.donate.email} <span className="font-normal">({t.common.optional})</span>
+          </Label>
+          <Input
+            id="donor-email"
+            type="email"
+            inputMode="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={MAX_EMAIL_LENGTH}
+            autoComplete="off"
+            dir="ltr"
+            className="h-10"
+          />
+        </div>
       </div>
 
       <label className={cn("mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition-colors", fictitious ? "border-amber-400/50 bg-amber-400/10" : "")}>
@@ -454,8 +551,9 @@ function LatestList({ donations, currency, eventId, onChanged }: { donations: Ad
                   {d.isTest && <span className="shrink-0 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold uppercase text-black">{t.eventStatus.TEST}</span>}
                   {d.isFictitious && <span className="shrink-0 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-300">{t.eventDetail.fictitious}</span>}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   {d.source === "MOBILE" ? t.regie.source_MOBILE : t.regie.source_MANUAL} · {timeAgo(d.createdAt, t)}
+                  {d.isAnonymous && (d.firstName || d.lastName) ? ` · ${[d.firstName, d.lastName].filter(Boolean).join(" ")}` : ""}
                 </div>
               </div>
               <span className="tabular shrink-0 font-semibold text-gold">{formatMoney(d.amount, currency, locale)}</span>
@@ -508,22 +606,39 @@ function EditDonationDialog({
   onSaved: () => void;
 }) {
   const { t } = useI18n();
-  const [name, setName] = useState(donation.donorName);
+  // Anciennes promesses (nom unique) : prénom / nom proposés à partir du nom affiché.
+  const initial =
+    donation.firstName !== null || donation.lastName !== null || donation.isAnonymous
+      ? { firstName: donation.firstName ?? "", lastName: donation.lastName ?? "" }
+      : splitDonorName(donation.donorName);
+  const [firstName, setFirstName] = useState(initial.firstName);
+  const [lastName, setLastName] = useState(initial.lastName);
+  const [anonymous, setAnonymous] = useState(donation.isAnonymous);
   const [amountText, setAmountText] = useState(String(donation.amount));
   const [fictitious, setFictitious] = useState(donation.isFictitious);
   const [pending, setPending] = useState(false);
 
   async function save() {
     const amount = parseAmountInput(amountText);
-    if (!name.trim() || !amount) {
-      toast.error(!name.trim() ? t.donate.errorName : t.donate.errorAmount);
+    if (!anonymous && (!firstName.trim() || !lastName.trim())) {
+      toast.error(!firstName.trim() ? t.donate.errorFirstName : t.donate.errorLastName);
+      return;
+    }
+    if (!amount) {
+      toast.error(t.donate.errorAmount);
       return;
     }
     setPending(true);
     const res = await fetch(`/api/events/${eventId}/donations/${donation.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ donorName: name.trim(), amount, ...(donation.source === "MANUAL" ? { isFictitious: fictitious } : {}) }),
+      body: JSON.stringify({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        anonymous,
+        amount,
+        ...(donation.source === "MANUAL" ? { isFictitious: fictitious } : {}),
+      }),
     });
     setPending(false);
     if (res.ok) {
@@ -540,10 +655,20 @@ function EditDonationDialog({
           <DialogTitle>{t.regie.editTitle}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="edit-name">{t.regie.donorName}</Label>
-            <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} className="h-11" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-first">{t.donate.firstName}</Label>
+              <Input id="edit-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={MAX_PERSON_NAME_LENGTH} className="h-11" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-last">{t.donate.lastName}</Label>
+              <Input id="edit-last" value={lastName} onChange={(e) => setLastName(e.target.value)} maxLength={MAX_PERSON_NAME_LENGTH} className="h-11" />
+            </div>
           </div>
+          <label className="flex items-center gap-3">
+            <Switch checked={anonymous} onCheckedChange={setAnonymous} />
+            <span className="text-sm">{t.regie.anonymousSwitch}</span>
+          </label>
           <div className="grid gap-2">
             <Label htmlFor="edit-amount">
               {t.regie.amount} ({CURRENCY_SYMBOL[currency]})
