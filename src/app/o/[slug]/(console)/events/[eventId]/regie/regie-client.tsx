@@ -51,7 +51,7 @@ import type { LiveSnapshot } from "@/lib/live/types";
 import type { AdminDonation, RegieState } from "@/lib/regie";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/use-hydrated";
-import { acceptsDonations } from "@/lib/lifecycle";
+import { acceptsDonations, TEST_DONATION_LIMIT, testDonationsRemaining } from "@/lib/lifecycle";
 import type { EventStatusCode } from "@/lib/constants";
 import { EventStatusControl } from "@/components/app/event-status-control";
 
@@ -132,7 +132,7 @@ export function RegieClient({
         </div>
       </header>
 
-      <StatusBanner eventId={eventId} status={state.event.status} isSuperAdmin={isSuperAdmin} />
+      <StatusBanner eventId={eventId} status={state.event.status} isSuperAdmin={isSuperAdmin} count={state.count} />
 
       {/* Mobile : total → saisie → dernières promesses → pilotage. Grand écran : 3 colonnes. */}
       <div className="mx-auto grid max-w-[1600px] gap-5 p-4 [grid-template-areas:'total'_'form'_'latest'_'controls'_'preview'] lg:grid-cols-[380px_minmax(0,1fr)] lg:[grid-template-areas:'total_total'_'form_latest'_'controls_preview'] xl:grid-cols-[400px_minmax(0,1fr)_380px] xl:grid-rows-[auto_1fr] xl:[grid-template-areas:'form_total_controls'_'form_latest_preview']">
@@ -229,10 +229,12 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "am
   );
 }
 
-function StatusBanner({ eventId, status, isSuperAdmin }: { eventId: string; status: EventStatusCode; isSuperAdmin: boolean }) {
+function StatusBanner({ eventId, status, isSuperAdmin, count }: { eventId: string; status: EventStatusCode; isSuperAdmin: boolean; count: number }) {
   const { t } = useI18n();
   const text =
     status === "DRAFT" ? t.regie.statusDraft : status === "TEST" ? t.regie.statusTest : status === "ENDED" ? t.regie.statusEnded : t.eventDetail.liveInfo;
+  // En test, toutes les promesses du direct sont des promesses de test (limite partagée avec le formulaire public).
+  const remaining = testDonationsRemaining(status, count);
   return (
     <div
       className={cn(
@@ -248,6 +250,17 @@ function StatusBanner({ eventId, status, isSuperAdmin }: { eventId: string; stat
           {status === "TEST" && <FlaskConical className="size-4 shrink-0" />}
           {status === "LIVE" && <span className="live-dot shrink-0" />}
           {text}
+          {remaining !== null && (
+            <span
+              data-test-count
+              className={cn(
+                "tabular shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                remaining === 0 ? "bg-destructive text-white" : "bg-amber-400 text-black",
+              )}
+            >
+              {fmt(t.regie.testCount, { count: Math.min(count, TEST_DONATION_LIMIT), max: TEST_DONATION_LIMIT })}
+            </span>
+          )}
         </span>
         <EventStatusControl eventId={eventId} status={status} isSuperAdmin={isSuperAdmin} size="sm" />
       </div>
@@ -287,7 +300,23 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ donorName, amount, isFictitious: fictitious, idempotencyKey: keyRef.current }),
       });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { code?: string };
+        // Refus métier : la saisie n'a pas été enregistrée, inutile de conserver la clé.
+        const refusal =
+          data.code === "TEST_LIMIT_REACHED"
+            ? fmt(t.regie.errorTestLimit, { max: TEST_DONATION_LIMIT })
+            : data.code === "EVENT_NOT_OPEN"
+              ? t.regie.statusDraft
+              : data.code === "EVENT_ENDED"
+                ? t.regie.statusEnded
+                : null;
+        if (refusal) {
+          toast.error(refusal);
+          return;
+        }
+        throw new Error(String(res.status));
+      }
       toast.success(fmt(t.regie.added, { name: donorName, amount: formatMoney(amount, currency, locale) }));
       keyRef.current = newKey();
       setName("");

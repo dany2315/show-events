@@ -10,6 +10,7 @@ import { MAX_DONATION_AMOUNT, SUGGESTED_AMOUNTS, type AppLocale, type CurrencyCo
 import { initials } from "@/components/show/fit";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/use-hydrated";
+import { TEST_DONATION_LIMIT } from "@/lib/lifecycle";
 
 type EventInfo = {
   name: string;
@@ -74,7 +75,19 @@ export function DonateForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.code === "RATE_LIMITED" ? t.errorRate : data.code === "EVENT_ENDED" ? t.errorEnded : data.code === "EVENT_NOT_OPEN" ? t.notOpen : data.code === "UNAVAILABLE" ? t.errorUnavailable : dictionaries[locale].common.errorGeneric);
+        setError(
+          data.code === "RATE_LIMITED"
+            ? t.errorRate
+            : data.code === "TEST_LIMIT_REACHED"
+              ? fmt(t.errorTestLimit, { max: TEST_DONATION_LIMIT })
+              : data.code === "EVENT_ENDED"
+                ? t.errorEnded
+                : data.code === "EVENT_NOT_OPEN"
+                  ? t.notOpen
+                  : data.code === "UNAVAILABLE"
+                    ? t.errorUnavailable
+                    : dictionaries[locale].common.errorGeneric,
+        );
         return;
       }
       if (typeof data.total === "number") setTotal(data.total);

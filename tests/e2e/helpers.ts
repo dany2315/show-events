@@ -12,6 +12,7 @@ export type E2EState = {
   ended: EventTokens;
   concurrency: EventTokens[];
   wifi: EventTokens;
+  rehearsal: EventTokens;
 };
 
 export function state(): E2EState {
@@ -37,6 +38,11 @@ export function money(amount: number) {
 
 export function key() {
   return `e2e${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Champs « donateur » d'une promesse envoyée par l'API publique. */
+export function publicDonor(name: string) {
+  return { donorName: name };
 }
 
 export async function expectTotalOnScreen(page: Page, amount: number) {

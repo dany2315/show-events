@@ -5,10 +5,19 @@ import { prisma } from "./prisma";
 import { appendOutbox, computeTotals, lockEvent, toPublicDonation } from "./live/server";
 import { MAX_DONATION_AMOUNT, MAX_DONOR_NAME_LENGTH, PUBLIC_RATE_LIMIT } from "./constants";
 import { audit } from "./audit";
+import { TEST_DONATION_LIMIT } from "./lifecycle";
 
 export class DonationError extends Error {
   constructor(
-    public code: "EVENT_NOT_FOUND" | "EVENT_NOT_OPEN" | "EVENT_ENDED" | "ORG_SUSPENDED" | "RATE_LIMITED" | "INVALID" | "NOT_FOUND",
+    public code:
+      | "EVENT_NOT_FOUND"
+      | "EVENT_NOT_OPEN"
+      | "EVENT_ENDED"
+      | "ORG_SUSPENDED"
+      | "RATE_LIMITED"
+      | "TEST_LIMIT_REACHED"
+      | "INVALID"
+      | "NOT_FOUND",
     message: string,
   ) {
     super(message);
@@ -55,6 +64,12 @@ type InsertedRow = {
  *  2. insère la promesse ;
  *  3. insère le message dans l'outbox (séquence attribuée après le verrou).
  * Idempotent : une même clé ne crée jamais deux promesses (double clic, réseau instable).
+ *
+ * Mode test : au plus TEST_DONATION_LIMIT promesses. En test, toutes les promesses non supprimées
+ * sont des promesses de test (le passage en direct les efface, sans retour possible en test) :
+ * la condition porte donc sur le compteur `liveCount` de la ligne verrouillée. Sous concurrence,
+ * PostgreSQL réévalue cette condition sur la dernière version de la ligne après le verrou :
+ * impossible de dépasser la limite, même avec des envois simultanés.
  */
 export async function recordDonation(input: RecordDonationInput) {
   const donorName = sanitizeDonorName(input.donorName);
@@ -80,6 +95,7 @@ export async function recordDonation(input: RecordDonationInput) {
           AND o.id = e."organizationId"
           AND o.status = 'ACTIVE'
           AND e.status IN ('TEST', 'LIVE')
+          AND (e.status <> 'TEST' OR e."liveCount" < ${TEST_DONATION_LIMIT}::int)
           AND (${key}::text IS NULL OR NOT EXISTS (
             SELECT 1 FROM "donation" d WHERE d."eventId" = e.id AND d."idempotencyKey" = ${key}::text))
           AND (${ipHash}::text IS NULL OR (
@@ -150,7 +166,10 @@ async function existingResult(eventId: string, key: string) {
 }
 
 async function explainRejection(eventId: string, key: string | null, clientHash: string | null) {
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, organization: { select: { status: true } } } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { status: true, liveCount: true, organization: { select: { status: true } } },
+  });
   if (!event) throw new DonationError("EVENT_NOT_FOUND", "Événement introuvable");
   if (event.organization.status === "SUSPENDED") throw new DonationError("ORG_SUSPENDED", "Association suspendue");
   if (event.status === "ENDED") throw new DonationError("EVENT_ENDED", "La collecte est terminée");
@@ -158,6 +177,9 @@ async function explainRejection(eventId: string, key: string | null, clientHash:
   if (key) {
     const existing = await prisma.donation.findUnique({ where: { eventId_idempotencyKey: { eventId, idempotencyKey: key } } });
     if (existing) return existingResult(eventId, key);
+  }
+  if (event.status === "TEST" && event.liveCount >= TEST_DONATION_LIMIT) {
+    throw new DonationError("TEST_LIMIT_REACHED", `Mode test limité à ${TEST_DONATION_LIMIT} promesses`);
   }
   if (clientHash) throw new DonationError("RATE_LIMITED", "Trop de promesses en peu de temps");
   throw new DonationError("INVALID", "Promesse refusée");

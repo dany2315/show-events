@@ -23,7 +23,7 @@ async function createUser(name: string, email: string, password: string) {
   return user;
 }
 
-async function createEvent(organizationId: string, name: string, status: "DRAFT" | "LIVE" | "ENDED") {
+async function createEvent(organizationId: string, name: string, status: "DRAFT" | "TEST" | "LIVE" | "ENDED") {
   const event = await prisma.event.create({
     data: {
       organizationId,
@@ -33,7 +33,7 @@ async function createEvent(organizationId: string, name: string, status: "DRAFT"
       currency: "EUR",
       locale: "fr",
       status,
-      creditConsumedAt: status === "DRAFT" ? null : new Date(),
+      creditConsumedAt: status === "DRAFT" || status === "TEST" ? null : new Date(),
       layout: { create: { config: defaultShowConfig("gala") as unknown as Prisma.InputJsonValue } },
     },
   });
@@ -59,6 +59,8 @@ async function main() {
   });
   const admin = await createUser("Admin E2E", `admin-${stamp}@e2e.test`, password);
   await prisma.membership.create({ data: { userId: admin.id, organizationId: org.id, role: "ORG_ADMIN" } });
+  // Créé en premier (le plus ancien) : n'écarte pas « Gala E2E » des listes du tableau de bord.
+  const rehearsal = await createEvent(org.id, "Répétition E2E", "TEST");
   const live = await createEvent(org.id, "Gala E2E", "LIVE");
   const ended = await createEvent(org.id, "Gala terminé E2E", "ENDED");
   const concurrency = await Promise.all([1, 2, 3].map((n) => createEvent(org.id, `Charge E2E ${n}`, "LIVE")));
@@ -66,7 +68,7 @@ async function main() {
 
   writeFileSync(
     "tests/e2e/.state.json",
-    JSON.stringify({ stamp, orgId: org.id, orgSlug: org.slug, adminEmail: admin.email, password, live, ended, concurrency, wifi }, null, 2),
+    JSON.stringify({ stamp, orgId: org.id, orgSlug: org.slug, adminEmail: admin.email, password, live, ended, concurrency, wifi, rehearsal }, null, 2),
   );
   console.log(`[e2e] association de test ${org.slug} prête`);
 }
