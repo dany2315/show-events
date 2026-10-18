@@ -121,33 +121,51 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     await expect(screen.locator('[data-backdrop="nature"]')).toHaveCount(1);
   });
 
-  test("studio : mise en page intelligente et bloc vidéo diffusés sur l'écran", async ({ page }) => {
+  test("studio : mise en page intelligente diffusée sur l'écran", async ({ page }) => {
     const s = state();
     await login(page, s.adminEmail, s.password);
     await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/studio`);
-
-    // Bloc vidéo + disposition automatique « Vidéo à la une »
     await page.getByRole("tab", { name: "Éléments" }).click();
-    await page.getByRole("button", { name: /^Vidéo Clip, film ou direct/ }).click();
+    // La mise en page de l'écran ne propose plus de vidéo (ni bloc, ni mise en page dédiée)
+    await expect(page.getByRole("button", { name: /^Vidéo/ })).toHaveCount(0);
+    await expect(page.getByText("Vidéo à la une")).toHaveCount(0);
+
+    // Chevauchement créé à la main, détecté puis corrigé
+    await page.getByRole("button", { name: /^QR code Accès au formulaire/ }).click();
     const props = page.locator("aside").last();
-    await props.getByPlaceholder("Lien YouTube, Vimeo, Dailymotion ou MP4").fill("https://vimeo.com/123456789");
-    await props.getByRole("button", { name: "Appliquer" }).click();
+    await props.getByLabel("X (%)").fill("37");
+    await expect(page.getByText(/chevauchement\(s\) détecté\(s\)/)).toBeVisible();
+    await page.getByRole("button", { name: "Corriger", exact: true }).click();
+    await expect(page.getByText("Aucun chevauchement")).toBeVisible();
+
+    // Mise en page « Donateurs à l'honneur », puis disposition automatique adaptée à 12 dons affichés
+    await page.getByRole("button", { name: "Donateurs à l'honneur", exact: true }).click();
     await page.getByRole("button", { name: "Disposition automatique" }).click();
-    await expect(page.getByText("Mise en page « Vidéo à la une » appliquée")).toBeVisible();
+    await expect(page.getByText("Mise en page « Donateurs à l'honneur » appliquée")).toBeVisible();
     await expect(page.getByText("Aucun chevauchement")).toBeVisible();
 
     await page.getByRole("button", { name: /Enregistrer le design/ }).click();
     await expect(page.getByText("Design enregistré et diffusé sur les écrans")).toBeVisible();
-    await expect(screen.locator('iframe[src*="player.vimeo.com/video/123456789"]')).toHaveCount(1, { timeout: 20_000 });
-    // Lecture épurée : ni titre, ni commandes, aucune interaction
-    expect(await screen.locator('iframe[src*="player.vimeo.com"]').getAttribute("src")).toContain("background=1");
-    await expect(screen.locator('iframe[src*="player.vimeo.com"]')).toHaveCSS("pointer-events", "none");
-    // Le fond reste le décor de la bibliothèque : aucune vidéo ni image de fond
-    await expect(screen.locator("iframe")).toHaveCount(1);
+    // Sur l'écran, la liste des dons passe sur le bord gauche (lecture de gauche à droite)
+    await expect
+      .poll(async () => (await screen.getByText("Dernières promesses").boundingBox())?.x ?? Infinity, { timeout: 20_000 })
+      .toBeLessThan(400);
+    // Aucune vidéo sur l'écran ; le fond reste le décor de la bibliothèque
+    await expect(screen.locator("iframe, video")).toHaveCount(0);
     await expect(screen.locator("[data-backdrop]")).toHaveCount(1);
+  });
+
+  test("écran : montant de l'objectif seul, sans barre de progression ni pourcentage", async () => {
+    const goal = screen.locator("[data-goal]");
+    await expect(goal).toBeVisible();
+    await expect(goal).toContainText("Objectif");
+    await expect(goal).toContainText(money(10_000));
+    await expect(goal).not.toContainText("%");
+    await expect(screen.locator(".show-bar-fill, [role='progressbar']")).toHaveCount(0);
+    await expect(screen.locator(".show-root").getByText(/\d\s?%/)).toHaveCount(0);
     if (process.env.E2E_SCREENSHOTS) {
-      await screen.waitForTimeout(9000);
-      await screen.screenshot({ path: "tests/e2e/__screens__/14-ecran-video.png" });
+      await screen.waitForTimeout(1500);
+      await screen.screenshot({ path: "tests/e2e/__screens__/14-ecran-objectif.png" });
     }
   });
 

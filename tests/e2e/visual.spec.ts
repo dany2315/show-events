@@ -78,7 +78,7 @@ test("captures de la bibliothèque d'arrière-plans", async ({ page, browser }) 
   await login(page, s.adminEmail, s.password);
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/studio`);
-  // Disposition par défaut (sans bloc vidéo) pour juger le décor.
+  // Disposition par défaut (après les essais de mise en page) pour juger le décor.
   await page.getByRole("button", { name: /Modèles/ }).click();
   await page.getByRole("menuitem", { name: "Réinitialiser la disposition" }).click();
   await page.getByRole("tab", { name: "Style" }).click();

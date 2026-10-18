@@ -2,12 +2,12 @@ import { clampBlock, type BlockType, type ShowBlock, type ShowConfig } from "./c
 
 /**
  * Moteur de mise en page intelligente du Studio (sans service externe, instantané).
- *  - 5 mises en page conçues pour que les 8 blocs coexistent sans chevauchement ;
+ *  - 4 mises en page conçues pour que les 7 blocs coexistent sans chevauchement ;
  *  - choix automatique selon les blocs affichés ;
  *  - miroir automatique pour l'hébreu (lecture de droite à gauche) ;
  *  - détection et correction des chevauchements après un placement manuel.
  */
-export const LAYOUT_PRESETS = ["classic", "spotlight", "donors", "video", "minimal"] as const;
+export const LAYOUT_PRESETS = ["classic", "spotlight", "donors", "minimal"] as const;
 export type LayoutPreset = (typeof LAYOUT_PRESETS)[number];
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -18,12 +18,12 @@ type PresetDef = {
 };
 
 const PRESETS: Record<LayoutPreset, PresetDef> = {
+  // Classique : la disposition par défaut du show.
   classic: {
     rects: {
       logo: { x: 3.2, y: 5, w: 13.5, h: 19 },
-      title: { x: 3.2, y: 27, w: 30, h: 20 },
-      video: { x: 3.2, y: 49, w: 30, h: 24 },
-      message: { x: 3.2, y: 75, w: 30, h: 19 },
+      title: { x: 3.2, y: 28, w: 30, h: 34 },
+      message: { x: 3.2, y: 70, w: 30, h: 24 },
       total: { x: 37, y: 5, w: 44.5, h: 26 },
       goal: { x: 37, y: 33, w: 44.5, h: 10 },
       donations: { x: 37, y: 46.5, w: 59.8, h: 48 },
@@ -37,10 +37,9 @@ const PRESETS: Record<LayoutPreset, PresetDef> = {
       title: { x: 14, y: 5, w: 56, h: 11 },
       qrcode: { x: 84.5, y: 4, w: 13, h: 31 },
       total: { x: 10, y: 19, w: 66, h: 27 },
-      goal: { x: 15, y: 48, w: 56, h: 8 },
+      goal: { x: 15, y: 48, w: 56, h: 10 },
       message: { x: 78, y: 38, w: 19, h: 20 },
-      donations: { x: 4, y: 60, w: 62, h: 36 },
-      video: { x: 68, y: 60, w: 29, h: 36 },
+      donations: { x: 4, y: 60, w: 93, h: 36 },
     },
     align: { total: "center", title: "start" },
     donations: { count: 6, columns: 2 },
@@ -52,32 +51,17 @@ const PRESETS: Record<LayoutPreset, PresetDef> = {
       qrcode: { x: 84, y: 4, w: 13, h: 31 },
       title: { x: 60, y: 22, w: 22, h: 14 },
       total: { x: 60, y: 38, w: 37, h: 20 },
-      goal: { x: 60, y: 60, w: 37, h: 8 },
-      message: { x: 60, y: 70, w: 37, h: 12 },
-      video: { x: 60, y: 84, w: 37, h: 12 },
+      goal: { x: 60, y: 60, w: 37, h: 9 },
+      message: { x: 60, y: 70, w: 37, h: 26 },
     },
     donations: { count: 12, columns: 1 },
   },
-  video: {
-    rects: {
-      video: { x: 3, y: 4, w: 56, h: 62 },
-      logo: { x: 62, y: 4, w: 14, h: 17 },
-      qrcode: { x: 84, y: 4, w: 13, h: 31 },
-      title: { x: 62, y: 23, w: 20, h: 12 },
-      total: { x: 62, y: 38, w: 35, h: 18 },
-      goal: { x: 62, y: 58, w: 35, h: 8 },
-      donations: { x: 3, y: 70, w: 56, h: 26 },
-      message: { x: 62, y: 70, w: 35, h: 26 },
-    },
-    donations: { count: 4, columns: 2 },
-  },
   minimal: {
     rects: {
-      video: { x: 3, y: 4, w: 18, h: 14 },
       logo: { x: 44, y: 4, w: 12, h: 15 },
       title: { x: 20, y: 20, w: 60, h: 10 },
       total: { x: 10, y: 32, w: 80, h: 30 },
-      goal: { x: 20, y: 64, w: 60, h: 7 },
+      goal: { x: 20, y: 64, w: 60, h: 9 },
       donations: { x: 3, y: 75, w: 60, h: 21 },
       message: { x: 65, y: 75, w: 17, h: 21 },
       qrcode: { x: 84, y: 62, w: 13, h: 34 },
@@ -90,7 +74,6 @@ const PRESETS: Record<LayoutPreset, PresetDef> = {
 /** Choisit la mise en page la plus adaptée aux blocs actuellement affichés. */
 export function pickPreset(config: ShowConfig): LayoutPreset {
   const visible = new Set(config.blocks.filter((b) => b.visible).map((b) => b.type));
-  if (visible.has("video")) return "video";
   if (!visible.has("donations")) return "minimal";
   if (config.donations.count >= 10) return "donors";
   if (!visible.has("title") && !visible.has("message")) return "spotlight";
@@ -121,7 +104,7 @@ export function autoLayout(config: ShowConfig, rtl: boolean) {
 }
 
 function defaultAlign(type: BlockType): ShowBlock["align"] {
-  return type === "total" || type === "goal" || type === "qrcode" || type === "video" ? "center" : "start";
+  return type === "total" || type === "goal" || type === "qrcode" ? "center" : "start";
 }
 
 /* ─── Chevauchements ──────────────────────────────────────────────────── */

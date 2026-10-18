@@ -4,7 +4,7 @@ import { z } from "zod";
 export const STAGE_WIDTH = 1920;
 export const STAGE_HEIGHT = 1080;
 
-export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode", "video"] as const;
+export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
 /**
@@ -46,13 +46,11 @@ const hexColor = z
 
 const pct = z.number().min(0).max(100);
 
-/** URL de média : fichier hébergé par la plateforme, Vercel Blob, lien https (MP4, WebM, GIF…) ou YouTube / Vimeo. */
+/** URL de média : fichier hébergé par la plateforme, Vercel Blob, lien https (MP4, WebM, GIF…) ou YouTube / Vimeo / Dailymotion. */
 export const mediaUrlSchema = z
   .string()
   .max(500)
   .refine((v) => /^\/api\/media\/[a-z0-9]+$/i.test(v) || /^https:\/\/[^\s"'<>]+$/i.test(v), "URL de média invalide");
-
-export const VIDEO_FITS = ["cover", "contain"] as const;
 
 export const blockSchema = z.object({
   type: z.enum(BLOCK_TYPES),
@@ -96,13 +94,6 @@ export const showConfigSchema = z.object({
     count: z.number().int().min(1).max(16),
     columns: z.union([z.literal(1), z.literal(2)]),
   }),
-  /** Bloc vidéo (MP4/WebM importé, lien direct, YouTube ou Vimeo). */
-  video: z.object({
-    url: mediaUrlSchema.nullable(),
-    muted: z.boolean(),
-    loop: z.boolean(),
-    fit: z.enum(VIDEO_FITS),
-  }),
   blocks: z.array(blockSchema).min(1).max(BLOCK_TYPES.length),
 });
 export type ShowConfig = z.infer<typeof showConfigSchema>;
@@ -115,7 +106,6 @@ export const DEFAULT_BLOCKS: ShowBlock[] = [
   { type: "goal", x: 37, y: 33, w: 44.5, h: 10, visible: true, align: "center", fontScale: 1 },
   { type: "donations", x: 37, y: 46.5, w: 59.8, h: 48, visible: true, align: "start", fontScale: 1 },
   { type: "qrcode", x: 84, y: 5, w: 12.8, h: 37, visible: true, align: "center", fontScale: 1 },
-  { type: "video", x: 3.2, y: 49, w: 30, h: 24, visible: false, align: "center", fontScale: 1 },
 ];
 
 export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
@@ -132,7 +122,6 @@ export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
     },
     texts: { subtitle: "", message: "", totalLabel: "", donationsLabel: "", qrLabel: "" },
     donations: { count: 8, columns: 2 },
-    video: { url: null, muted: true, loop: true, fit: "cover" },
     blocks: DEFAULT_BLOCKS.map((b) => ({ ...b })),
   };
 }
@@ -141,8 +130,8 @@ export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {
  * Normalise une configuration venant de la base ou du client :
  * valeurs manquantes complétées, blocs inconnus retirés, blocs manquants ajoutés (masqués),
  * blocs maintenus dans la surface.
- * Les champs retirés des anciennes versions (fond image / vidéo, assombrissement, couleur de fond)
- * sont ignorés silencieusement.
+ * Les champs retirés des anciennes versions (fond image / vidéo, assombrissement, couleur de fond,
+ * bloc vidéo et ses réglages) sont ignorés silencieusement.
  */
 export function normalizeShowConfig(input: unknown): ShowConfig {
   const base = defaultShowConfig();
@@ -157,7 +146,6 @@ export function normalizeShowConfig(input: unknown): ShowConfig {
     animation: { ...base.animation, ...(raw.animation ?? {}) },
     texts: { ...base.texts, ...(raw.texts ?? {}) },
     donations: { ...base.donations, ...(raw.donations ?? {}) },
-    video: { ...base.video, ...(raw.video ?? {}) },
     blocks: [],
   };
 

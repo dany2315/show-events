@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   BLOCK_TYPES,
@@ -13,12 +15,16 @@ import {
 import { BACKGROUND_LIST, BACKGROUNDS, backgroundScene, SHOW_CSS_VARS, themeCssVars } from "@/lib/show/themes";
 import { AMBIENT_ELEMENT_COUNT } from "@/components/show/ambient";
 import { fitFontSize } from "@/components/show/fit";
+import { GoalFigures } from "@/components/show/blocks";
+import { dictionaries } from "@/i18n/dictionaries";
 
 describe("configuration du show", () => {
   it("la configuration par défaut est valide et contient les 7 blocs du cahier des charges", () => {
     const config = defaultShowConfig();
     expect(showConfigSchema.safeParse(config).success).toBe(true);
+    expect(BLOCK_TYPES).toHaveLength(7);
     expect(config.blocks.map((b) => b.type).sort()).toEqual([...BLOCK_TYPES].sort());
+    expect(config).not.toHaveProperty("video");
   });
 
   it("aucun bloc par défaut ne déborde de la surface 1920×1080", () => {
@@ -36,6 +42,27 @@ describe("configuration du show", () => {
     expect(config.blocks.find((b) => b.type === "qrcode")?.visible).toBe(false);
     expect(normalizeShowConfig(null).theme).toBe("gala");
     expect(normalizeShowConfig({ theme: "inexistant" }).theme).toBe("gala");
+  });
+
+  it("normalise sans erreur une ancienne configuration avec bloc vidéo", () => {
+    const current = defaultShowConfig("royal");
+    const legacy = {
+      ...current,
+      texts: { ...current.texts, message: "Merci" },
+      video: { url: "https://vimeo.com/123456789", muted: false, loop: true, fit: "contain" },
+      blocks: [
+        { type: "video", x: 3, y: 4, w: 56, h: 62, visible: true, align: "center", fontScale: 1 },
+        ...current.blocks.map((b) => (b.type === "total" ? { ...b, x: 62, y: 38, w: 35, h: 18 } : b)),
+      ],
+    };
+    const config = normalizeShowConfig(legacy);
+    expect(showConfigSchema.safeParse(config).success).toBe(true);
+    expect(config).not.toHaveProperty("video");
+    expect(config.blocks.map((b) => b.type)).toEqual(current.blocks.map((b) => b.type));
+    // Le reste de l'ancienne configuration est conservé.
+    expect(config.theme).toBe("royal");
+    expect(config.texts.message).toBe("Merci");
+    expect(config.blocks.find((b) => b.type === "total")).toMatchObject({ x: 62, y: 38, w: 35, h: 18, visible: true });
   });
 
   it("supprime les blocs en double", () => {
@@ -137,5 +164,26 @@ describe("ajustement du texte", () => {
     const long = fitFontSize("Soirée de solidarité annuelle de l'association Espoir pour demain", 600, 200, { max: 120 });
     expect(long).toBeLessThan(short);
     expect(long).toBeGreaterThanOrEqual(12);
+  });
+});
+
+describe("bloc Objectif", () => {
+  const render = (goal: number, locale: "fr" | "he" = "fr") =>
+    renderToStaticMarkup(
+      createElement(GoalFigures, { goal, currency: locale === "he" ? "ILS" : "EUR", locale, t: dictionaries[locale].show, width: 854, height: 108 }),
+    ).replace(/[  ‎‏]/g, " ");
+
+  it("affiche uniquement le montant de l'objectif : ni barre, ni jauge, ni pourcentage", () => {
+    const html = render(10000);
+    expect(html).toContain("Objectif");
+    expect(html).toContain("10 000 €");
+    expect(html).not.toMatch(/show-bar|show-track|progress|%|Reste/);
+  });
+
+  it("est traduit en hébreu", () => {
+    const html = render(900, "he");
+    expect(html).toContain("יעד");
+    expect(html).toContain("900");
+    expect(html).not.toContain("%");
   });
 });

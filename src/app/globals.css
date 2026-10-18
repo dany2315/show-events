@@ -234,8 +234,7 @@
 .show-lowpower .show-panel {
   backdrop-filter: none;
 }
-.show-lowpower .show-accent-text,
-.show-lowpower .show-bar-shine {
+.show-lowpower .show-accent-text {
   animation: none;
 }
 
@@ -266,15 +265,6 @@
 }
 [dir="rtl"] .show-bar-fill {
   background: linear-gradient(270deg, color-mix(in oklab, var(--show-accent) 70%, black), var(--show-accent), var(--show-accent2));
-}
-
-.show-bar-shine {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-  animation: show-shine 3.2s ease-in-out infinite;
-}
-@keyframes show-shine {
-  0% { transform: translateX(-120%); }
-  60%, 100% { transform: translateX(260%); }
 }
 
 @keyframes show-twinkle {
@@ -315,7 +305,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .show-accent-text,
-  .show-bar-shine,
   .live-dot::after {
     animation: none;
   }

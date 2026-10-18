@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { dictionaries } from "@/i18n/dictionaries";
 import type { AppLocale } from "@/lib/constants";
 import { Ambient } from "./ambient";
+import { GoalFigures } from "./blocks";
 
 /** Faux QR code des vignettes (motifs de repérage + modules pseudo-aléatoires fixes). */
 const QR_PATH = (() => {
@@ -60,6 +61,9 @@ export const BackdropThumb = memo(function BackdropThumb({ theme, locale, classN
   const names = dictionaries[locale].landing.demoDonors.slice(0, 4);
   const amounts = [5000, 1800, 2500, 1000];
   const currency = locale === "he" ? "ILS" : "EUR";
+  // Mêmes ordres de grandeur que la démo de la page d'accueil.
+  const total = locale === "he" ? 512_000 : 128_450;
+  const goal = locale === "he" ? 900_000 : 200_000;
 
   return (
     <span ref={ref} aria-hidden className={`relative block aspect-video overflow-hidden ${className ?? ""}`} style={{ background: def.vars.bg }}>
@@ -83,12 +87,12 @@ export const BackdropThumb = memo(function BackdropThumb({ theme, locale, classN
               {dictionaries[locale].show.totalLabel}
             </span>
             <span className="show-accent-text tabular mt-3 inline-block font-extrabold leading-none" style={{ fontSize: 170 }}>
-              {formatMoney(locale === "he" ? 512_000 : 128_450, currency, locale)}
+              {formatMoney(total, currency, locale)}
             </span>
           </span>
-          {/* Objectif */}
-          <span className="absolute block overflow-hidden rounded-full" style={{ insetInlineStart: "37%", top: "36%", width: "44.5%", height: 34, background: "var(--show-track)" }}>
-            <span className="show-bar-fill absolute inset-y-0 start-0 block rounded-full" style={{ width: "64%" }} />
+          {/* Objectif : uniquement le montant, sans barre de progression */}
+          <span className="absolute block" style={{ insetInlineStart: "37%", top: "33%", width: "44.5%", height: "10%" }}>
+            <GoalFigures goal={goal} currency={currency} locale={locale} t={dictionaries[locale].show} width={STAGE_WIDTH * 0.445} height={STAGE_HEIGHT * 0.1} />
           </span>
           {/* Titre */}
           <span className="show-display absolute block font-semibold" style={{ insetInlineStart: "3.2%", top: "34%", width: "30%", fontSize: 92, lineHeight: 1.05 }}>

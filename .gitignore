@@ -55,3 +55,6 @@ next-env.d.ts
 
 # identifiants de test locaux
 /IDENTIFIANTS-TEST.md
+
+# Copies de travail locales
+/.claude/worktrees/

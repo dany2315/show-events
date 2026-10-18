@@ -404,7 +404,7 @@ export function StudioClient({
         {/* Panneau droit */}
         <aside className="order-3 hidden min-h-0 border-s lg:block lg:w-[300px] lg:shrink-0">
           <ScrollArea className="h-full">
-            <PropertiesPanel config={config} update={update} selected={selected} organizationId={organizationId} blobEnabled={blobEnabled} />
+            <PropertiesPanel config={config} update={update} selected={selected} />
           </ScrollArea>
         </aside>
       </div>

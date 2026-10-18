@@ -3,16 +3,12 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import QRCode from "qrcode";
-import { formatMoney, formatPercent, goalProgress } from "@/lib/money";
-import type { AppLocale } from "@/lib/constants";
+import { formatMoney } from "@/lib/money";
+import type { AppLocale, CurrencyCode } from "@/lib/constants";
 import type { DonationAnimation, ShowBlock, ShowConfig } from "@/lib/show/config";
 import type { LiveEventInfo, PublicDonation } from "@/lib/live/types";
 import type { Dictionary } from "@/i18n/dictionaries";
-import { fmt } from "@/i18n/format";
 import { AnimatedAmount } from "./animated-amount";
-import { VideoMedia } from "./video-media";
-import { dictionaries } from "@/i18n/dictionaries";
-import { parseVideoSource } from "@/lib/show/media";
 import { fitFontSize, initials, typo } from "./fit";
 
 export type BlockContext = {
@@ -49,8 +45,6 @@ export function ShowBlockContent(props: BlockProps) {
       return <MessageBlock {...props} />;
     case "qrcode":
       return <QrBlock {...props} />;
-    case "video":
-      return <VideoBlock {...props} />;
   }
 }
 
@@ -134,40 +128,43 @@ function TotalBlock({ block, width, height, ctx }: BlockProps) {
 }
 
 function GoalBlock({ block, width, height, ctx }: BlockProps) {
-  const goal = ctx.event.goalAmount;
-  const pct = goalProgress(ctx.total, goal);
-  const rawPct = goal > 0 ? (ctx.total / goal) * 100 : 0;
-  const fs = Math.min(height * 0.3, width * 0.035) * block.fontScale;
-  const barH = Math.max(10, height * 0.3);
+  return <GoalFigures goal={ctx.event.goalAmount} currency={ctx.event.currency} locale={ctx.locale} t={ctx.t} width={width} height={height} fontScale={block.fontScale} />;
+}
+
+/**
+ * Objectif du show : uniquement le montant de l'objectif (aucune barre, jauge ni pourcentage).
+ * Le montant collecté est celui du bloc « Montant total ».
+ * Partagé avec les vignettes d'arrière-plan (éléments `span`, utilisables dans un bouton).
+ */
+export function GoalFigures({
+  goal,
+  currency,
+  locale,
+  t,
+  width,
+  height,
+  fontScale = 1,
+}: {
+  goal: number;
+  currency: CurrencyCode;
+  locale: AppLocale;
+  t: Pick<Dictionary["show"], "goalLabel">;
+  width: number;
+  height: number;
+  fontScale?: number;
+}) {
+  const goalText = formatMoney(goal, currency, locale);
+  const valueFs = Math.min(height * 0.55, width / (Math.max(goalText.length, 6) * 0.62)) * fontScale;
+  const labelFs = Math.max(10, Math.min(valueFs * 0.4, width / (t.goalLabel.length * 0.82)));
   return (
-    <div className="flex size-full flex-col justify-center" style={{ gap: height * 0.12 }}>
-      <div className="flex items-baseline justify-between" style={{ fontSize: fs }}>
-        <span className="font-medium" style={{ color: "var(--show-muted)" }}>
-          {fmt(ctx.t.goal, { goal: formatMoney(goal, ctx.event.currency, ctx.locale) })}
-        </span>
-        <span className="tabular font-bold" style={{ color: "var(--show-accent)" }}>
-          {formatPercent(rawPct, ctx.locale)}
-        </span>
-      </div>
-      <div className="relative overflow-hidden rounded-full" style={{ height: barH, background: "var(--show-track)" }}>
-        <div
-          className="show-bar-fill absolute inset-y-0 start-0 overflow-hidden rounded-full"
-          style={{
-            width: `${Math.max(pct, pct > 0 ? 1.5 : 0)}%`,
-            transition: ctx.animate ? "width 1.8s cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
-          }}
-        >
-          <div className="show-bar-shine absolute inset-y-0 w-1/3" />
-        </div>
-        {[25, 50, 75].map((m) => (
-          <span
-            key={m}
-            className="absolute inset-y-0 w-px"
-            style={{ insetInlineStart: `${m}%`, background: "color-mix(in oklab, var(--show-text) 22%, transparent)" }}
-          />
-        ))}
-      </div>
-    </div>
+    <span data-goal className="flex size-full flex-col items-center justify-center text-center">
+      <span className="block font-semibold uppercase whitespace-nowrap" style={{ fontSize: labelFs, letterSpacing: "0.24em", color: "var(--show-muted)" }}>
+        {t.goalLabel}
+      </span>
+      <span className="tabular block font-bold leading-none whitespace-nowrap" style={{ fontSize: valueFs, marginTop: labelFs * 0.4 }}>
+        {goalText}
+      </span>
+    </span>
   );
 }
 
@@ -321,31 +318,6 @@ function QrBlock({ block, width, height, ctx }: BlockProps) {
           {shortUrl}
         </div>
       </div>
-    </div>
-  );
-}
-
-function VideoBlock({ width, height, ctx }: BlockProps) {
-  const video = ctx.config.video;
-  const valid = Boolean(parseVideoSource(video.url));
-  if (!valid) {
-    if (!ctx.editing) return null;
-    return (
-      <div
-        className="flex size-full flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed text-center"
-        style={{ borderColor: "var(--show-panel-border)", color: "var(--show-muted)", fontSize: Math.max(18, height * 0.07) }}
-      >
-        <svg viewBox="0 0 24 24" width={Math.min(width, height) * 0.22} height={Math.min(width, height) * 0.22} fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-          <rect x="2" y="5" width="15" height="14" rx="2.5" />
-          <path d="m17 10 5-3v10l-5-3" />
-        </svg>
-        <span className="max-w-[80%]">{dictionaries[ctx.locale].studio.videoEmpty}</span>
-      </div>
-    );
-  }
-  return (
-    <div className="show-panel size-full overflow-hidden rounded-[28px]" style={{ padding: 0 }}>
-      <VideoMedia url={video.url} muted={video.muted} loop={video.loop} fit={video.fit} box={{ width, height }} />
     </div>
   );
 }
