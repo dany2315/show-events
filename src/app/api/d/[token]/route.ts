@@ -52,6 +52,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/d/[token]">
       phone: body.phone,
       email: body.email ?? null,
       anonymous: body.anonymous,
+      categoryId: body.categoryId ?? null,
       amount: body.amount,
       isFictitious: false,
       source: "MOBILE",

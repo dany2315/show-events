@@ -15,6 +15,12 @@ import { normalizePhone } from "./donor";
 
 const amount = z.coerce.number().int().positive().max(MAX_DONATION_AMOUNT);
 const idempotencyKey = z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/);
+/** Catégorie de donateurs choisie (facultative) ; son appartenance à l'événement est vérifiée en base. */
+const categoryId = z
+  .string()
+  .max(40)
+  .nullish()
+  .transform((v) => v || undefined);
 
 /** Prénom / Nom du donateur. */
 const personName = z.string().trim().min(1).max(MAX_PERSON_NAME_LENGTH);
@@ -75,6 +81,7 @@ export const publicDonationSchema = z.object({
   phone: phoneSchema,
   email: optionalEmailSchema,
   anonymous: z.boolean().default(false),
+  categoryId,
   amount,
   idempotencyKey,
   /** Champ piège invisible : rempli uniquement par les robots. */
@@ -92,6 +99,7 @@ export const manualDonationSchema = z
     phone: optionalPhone,
     email: optionalEmailSchema,
     anonymous: z.boolean().default(false),
+    categoryId,
     amount,
     isFictitious: z.boolean().default(false),
     idempotencyKey,
@@ -107,6 +115,13 @@ export const updateDonationSchema = z
     firstName: optionalPersonName,
     lastName: optionalPersonName,
     anonymous: z.boolean().optional(),
+    /** Catégorie de donateurs : chaîne vide ou null pour la retirer. */
+    categoryId: z
+      .string()
+      .max(40)
+      .nullable()
+      .optional()
+      .transform((v) => (v === "" ? null : v)),
     amount: amount.optional(),
     isFictitious: z.boolean().optional(),
   })

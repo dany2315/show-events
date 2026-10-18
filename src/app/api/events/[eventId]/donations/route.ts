@@ -30,6 +30,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/events/[eve
       phone: body.phone ?? null,
       email: body.email ?? null,
       anonymous: body.anonymous,
+      categoryId: body.categoryId ?? null,
       amount: body.amount,
       isFictitious: body.isFictitious,
       source: "MANUAL",

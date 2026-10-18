@@ -4,7 +4,7 @@ import { z } from "zod";
 export const STAGE_WIDTH = 1920;
 export const STAGE_HEIGHT = 1080;
 
-export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode"] as const;
+export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode", "categories"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
 /**
@@ -106,6 +106,9 @@ export const DEFAULT_BLOCKS: ShowBlock[] = [
   { type: "goal", x: 37, y: 33, w: 44.5, h: 10, visible: true, align: "center", fontScale: 1 },
   { type: "donations", x: 37, y: 46.5, w: 59.8, h: 48, visible: true, align: "start", fontScale: 1 },
   { type: "qrcode", x: 84, y: 5, w: 12.8, h: 37, visible: true, align: "center", fontScale: 1 },
+  // Totaux par catégorie de donateurs : masqué tant que l'événement n'a pas de catégories ;
+  // affiché, il prend le haut de la liste des dons (voir show/categories-layout.ts).
+  { type: "categories", x: 37, y: 46.5, w: 59.8, h: 11, visible: false, align: "center", fontScale: 1 },
 ];
 
 export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {

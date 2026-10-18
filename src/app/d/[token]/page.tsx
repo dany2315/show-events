@@ -29,6 +29,7 @@ export default async function DonatePage({ params }: PageProps<"/d/[token]">) {
           logoUrl: true,
           organization: { select: { name: true, logoUrl: true, status: true } },
           layout: { select: { config: true } },
+          categories: { orderBy: { position: "asc" }, select: { id: true, name: true, color: true } },
         },
       })
     : null;
@@ -58,6 +59,7 @@ export default async function DonatePage({ params }: PageProps<"/d/[token]">) {
         locale: event.locale,
         goalAmount: event.goalAmount,
         status: event.status,
+        categories: event.categories,
       }}
       initialTotal={totals.total}
       cssVars={themeCssVars(config)}

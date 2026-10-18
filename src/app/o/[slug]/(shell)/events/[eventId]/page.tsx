@@ -27,7 +27,16 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
   const { t, locale } = await getI18n();
   const event = await prisma.event.findFirst({
     where: { id: eventId, organizationId: ctx.org.id },
-    select: { id: true, name: true, date: true, goalAmount: true, currency: true, locale: true, status: true },
+    select: {
+      id: true,
+      name: true,
+      date: true,
+      goalAmount: true,
+      currency: true,
+      locale: true,
+      status: true,
+      categories: { orderBy: { position: "asc" }, select: { id: true, name: true, color: true } },
+    },
   });
   if (!event) notFound();
 
@@ -156,7 +165,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
       <section className="mt-10">
         <h2 className="text-lg font-semibold">{t.eventDetail.donationsList}</h2>
         <div className="mt-4">
-          <DonationsTable donations={donations} currency={event.currency} exportUrl={canManage ? `/api/events/${event.id}/export` : undefined} />
+          <DonationsTable donations={donations} categories={event.categories} currency={event.currency} exportUrl={canManage ? `/api/events/${event.id}/export` : undefined} />
         </div>
       </section>
 
@@ -167,6 +176,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
             <h2 className="text-lg font-semibold">{t.eventDetail.editDetails}</h2>
             <div className="mt-5">
               <EventForm
+                key={event.categories.map((c) => c.id).join("|")}
                 mode="edit"
                 eventId={event.id}
                 action={updateEventAction}
@@ -176,6 +186,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
                   goalAmount: event.goalAmount,
                   currency: event.currency,
                   locale: event.locale,
+                  categories: event.categories,
                 }}
                 currencyLocked={regie.count > 0}
                 submitLabel={t.common.save}

@@ -45,7 +45,8 @@ import { useLowPower } from "@/components/show/use-low-power";
 import { useLiveEvent, type ConnectionStatus } from "@/components/show/use-live-event";
 import { EventStatusBadge } from "@/components/app/event-status-badge";
 import { useI18n } from "@/i18n/client";
-import { fmt } from "@/i18n/format";
+import { countLabel, fmt } from "@/i18n/format";
+import { contrastText, type PublicCategory } from "@/lib/categories";
 import { formatMoney, formatPercent, goalProgress, parseAmountInput, CURRENCY_SYMBOL } from "@/lib/money";
 import { MAX_DONATION_AMOUNT, MAX_EMAIL_LENGTH, MAX_PERSON_NAME_LENGTH, MAX_PHONE_INPUT_LENGTH, QUICK_AMOUNTS } from "@/lib/constants";
 import { looksLikeEmail, normalizePhone, splitDonorName } from "@/lib/donor";
@@ -80,6 +81,7 @@ export function RegieClient({
   const lowPower = useLowPower();
   const [regie, setRegie] = useState<RegieState>(initialRegie);
   const currency = state.event.currency;
+  const categories = state.event.categories ?? [];
 
   // Vue administrateur (réel / fictif) rafraîchie à chaque changement du direct.
   const refreshTimer = useRef<number | null>(null);
@@ -159,14 +161,30 @@ export function RegieClient({
             <Stat label={t.regie.fictitious} value={formatMoney(regie.fictitiousTotal, currency, locale)} tone="amber" />
             <Stat label={t.regie.count} value={String(state.count)} />
           </div>
+          {categories.length > 0 && (
+            <div className="mt-4" data-regie-categories>
+              <div className="text-xs text-muted-foreground">{t.regie.categoryTotals}</div>
+              <div className="mt-2 grid gap-2" style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))` }}>
+                {categories.map((c) => (
+                  <div key={c.id} className="min-w-0 rounded-2xl border-s-4 bg-muted px-3 py-2.5" style={{ borderInlineStartColor: c.color }}>
+                    <div className="truncate text-[11px] font-medium text-muted-foreground">{c.name}</div>
+                    <div className="tabular truncate text-sm font-semibold" data-category-total={c.name}>
+                      {formatMoney(c.total, currency, locale)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{countLabel(t.counts, "promises", c.count)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="[grid-area:latest] rounded-3xl border bg-card p-5">
-          <LatestList donations={regie.donations} currency={currency} eventId={eventId} onChanged={refreshRegie} />
+          <LatestList donations={regie.donations} categories={categories} currency={currency} eventId={eventId} onChanged={refreshRegie} />
         </section>
 
         <section className="[grid-area:form]">
-          <AddDonationForm eventId={eventId} currency={currency} onAdded={refreshRegie} open={acceptsDonations(state.event.status)} />
+          <AddDonationForm eventId={eventId} currency={currency} categories={categories} onAdded={refreshRegie} open={acceptsDonations(state.event.status)} />
         </section>
 
         <section className="[grid-area:controls]">
@@ -270,7 +288,55 @@ function StatusBanner({ eventId, status, isSuperAdmin, count }: { eventId: strin
   );
 }
 
-function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string; currency: "EUR" | "ILS" | "USD"; onAdded: () => void; open: boolean }) {
+/** Choix de la catégorie de donateurs (facultatif). */
+function CategoryPicker({ categories, value, onChange }: { categories: PublicCategory[]; value: string | null; onChange: (id: string | null) => void }) {
+  const { t } = useI18n();
+  if (categories.length === 0) return null;
+  return (
+    <div className="grid gap-1.5">
+      <span className="text-xs text-muted-foreground">
+        {t.regie.category} ({t.common.optional})
+      </span>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t.regie.category}>
+        {[{ id: null, name: t.regie.categoryNone, color: null } as const, ...categories].map((c) => {
+          const active = value === c.id;
+          return (
+            <button
+              key={c.id ?? "none"}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(c.id)}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
+                active ? "border-transparent font-semibold" : "text-muted-foreground hover:text-foreground",
+                active && !c.color && "bg-foreground text-background",
+              )}
+              style={active && c.color ? { background: c.color, color: contrastText(c.color) } : undefined}
+            >
+              {c.color && <span aria-hidden className="size-2.5 rounded-full" style={{ background: active ? "currentColor" : c.color }} />}
+              {c.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AddDonationForm({
+  eventId,
+  currency,
+  categories,
+  onAdded,
+  open,
+}: {
+  eventId: string;
+  currency: "EUR" | "ILS" | "USD";
+  categories: PublicCategory[];
+  onAdded: () => void;
+  open: boolean;
+}) {
   const { t, locale } = useI18n();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -279,6 +345,7 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
   const [email, setEmail] = useState("");
   const [amountText, setAmountText] = useState("");
   const [fictitious, setFictitious] = useState(false);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const keyRef = useRef(newKey());
   const hydrated = useHydrated();
@@ -324,6 +391,7 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
           email: email.trim(),
           amount,
           isFictitious: fictitious,
+          categoryId,
           idempotencyKey: keyRef.current,
         }),
       });
@@ -353,6 +421,7 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
       setEmail("");
       setAmountText("");
       setFictitious(false);
+      setCategoryId(null);
       onAdded();
       firstRef.current?.focus();
     } catch {
@@ -418,6 +487,7 @@ function AddDonationForm({ eventId, currency, onAdded, open }: { eventId: string
           </div>
         </div>
         {anonymous && <p className="text-xs text-muted-foreground">{t.regie.anonymousHelp}</p>}
+        <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />
       </div>
 
       <div className="mt-4 grid gap-2">
@@ -515,8 +585,21 @@ function timeAgo(iso: string, t: ReturnType<typeof useI18n>["t"]) {
   return fmt(t.regie.minutesAgo, { count: minutes });
 }
 
-function LatestList({ donations, currency, eventId, onChanged }: { donations: AdminDonation[]; currency: "EUR" | "ILS" | "USD"; eventId: string; onChanged: () => void }) {
+function LatestList({
+  donations,
+  categories,
+  currency,
+  eventId,
+  onChanged,
+}: {
+  donations: AdminDonation[];
+  categories: PublicCategory[];
+  currency: "EUR" | "ILS" | "USD";
+  eventId: string;
+  onChanged: () => void;
+}) {
   const { t, locale } = useI18n();
+  const categoryOf = (d: AdminDonation) => (d.categoryId ? categories.find((c) => c.id === d.categoryId) : undefined);
   const [editing, setEditing] = useState<AdminDonation | null>(null);
   const [deleting, setDeleting] = useState<AdminDonation | null>(null);
   const [, setTick] = useState(0);
@@ -547,12 +630,14 @@ function LatestList({ donations, currency, eventId, onChanged }: { donations: Ad
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
+                  {categoryOf(d) && <span aria-hidden title={categoryOf(d)!.name} className="size-2.5 shrink-0 rounded-full" style={{ background: categoryOf(d)!.color }} />}
                   <span className="truncate font-medium">{d.donorName}</span>
                   {d.isTest && <span className="shrink-0 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold uppercase text-black">{t.eventStatus.TEST}</span>}
                   {d.isFictitious && <span className="shrink-0 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-300">{t.eventDetail.fictitious}</span>}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
                   {d.source === "MOBILE" ? t.regie.source_MOBILE : t.regie.source_MANUAL} · {timeAgo(d.createdAt, t)}
+                  {categoryOf(d) ? ` · ${categoryOf(d)!.name}` : ""}
                   {d.isAnonymous && (d.firstName || d.lastName) ? ` · ${[d.firstName, d.lastName].filter(Boolean).join(" ")}` : ""}
                 </div>
               </div>
@@ -570,7 +655,7 @@ function LatestList({ donations, currency, eventId, onChanged }: { donations: Ad
         </ul>
       )}
 
-      {editing && <EditDonationDialog donation={editing} currency={currency} eventId={eventId} onClose={() => setEditing(null)} onSaved={onChanged} />}
+      {editing && <EditDonationDialog donation={editing} categories={categories} currency={currency} eventId={eventId} onClose={() => setEditing(null)} onSaved={onChanged} />}
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
@@ -594,12 +679,14 @@ function LatestList({ donations, currency, eventId, onChanged }: { donations: Ad
 
 function EditDonationDialog({
   donation,
+  categories,
   currency,
   eventId,
   onClose,
   onSaved,
 }: {
   donation: AdminDonation;
+  categories: PublicCategory[];
   currency: "EUR" | "ILS" | "USD";
   eventId: string;
   onClose: () => void;
@@ -616,6 +703,7 @@ function EditDonationDialog({
   const [anonymous, setAnonymous] = useState(donation.isAnonymous);
   const [amountText, setAmountText] = useState(String(donation.amount));
   const [fictitious, setFictitious] = useState(donation.isFictitious);
+  const [categoryId, setCategoryId] = useState<string | null>(donation.categoryId);
   const [pending, setPending] = useState(false);
 
   async function save() {
@@ -637,6 +725,7 @@ function EditDonationDialog({
         lastName: lastName.trim(),
         anonymous,
         amount,
+        ...(categories.length > 0 ? { categoryId } : {}),
         ...(donation.source === "MANUAL" ? { isFictitious: fictitious } : {}),
       }),
     });
@@ -669,6 +758,7 @@ function EditDonationDialog({
             <Switch checked={anonymous} onCheckedChange={setAnonymous} />
             <span className="text-sm">{t.regie.anonymousSwitch}</span>
           </label>
+          <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />
           <div className="grid gap-2">
             <Label htmlFor="edit-amount">
               {t.regie.amount} ({CURRENCY_SYMBOL[currency]})

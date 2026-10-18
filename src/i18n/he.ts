@@ -269,7 +269,15 @@ export const he: typeof fr = {
     blocked_ORG_SUSPENDED: "העמותה שלכם מושעית.",
     blockedHelp: "פנו לצוות Fundraising Live כדי להפעיל או לחדש את המסלול.",
     creditOnLive: "יצירה ובדיקה של אירוע הן ללא עלות: קרדיט ינוצל רק בעלייה לשידור ({count} זמינים).",
-    unlimitedOnLive: "המנוי שלכם מכסה את העלייה לשידור של האירועים. מצב הבדיקה ללא הגבלה.",
+    unlimitedOnLive: "המנוי שלכם מכסה את העלייה לשידור של האירועים. מצב הבדיקה ללא עלות (עד 10 התחייבויות בדיקה).",
+    fieldCategories: "קטגוריות תורמים",
+    fieldCategoriesHelp: "עד 3 קטגוריות (לדוגמה: שותפים, משפחות, חברות): התורם בוחר את הקטגוריה שלו והסכום של כל קטגוריה מוצג על המסך.",
+    categoryName: "שם הקטגוריה {n}",
+    categoryNamePlaceholder: "לדוגמה: שותפים",
+    categoryColor: "צבע הקטגוריה {n}",
+    addCategory: "הוספת קטגוריה",
+    removeCategory: "הסרת הקטגוריה {n}",
+    categoriesMax: "עד 3 קטגוריות.",
   },
   eventDetail: {
     overview: "סקירה",
@@ -336,6 +344,7 @@ export const he: typeof fr = {
     donor: "תורם",
     contact: "פרטי קשר",
     anonymousOf: "אנונימי במסך · {name}",
+    category: "קטגוריה",
   },
   studio: {
     title: "סטודיו המופע",
@@ -451,6 +460,9 @@ export const he: typeof fr = {
     block_donations_desc: "שמות וסכומים",
     block_message_desc: "הודעה אישית",
     block_qrcode_desc: "גישה לטופס",
+    block_categories: "קטגוריות",
+    block_categories_desc: "סכום לפי קטגוריית תורמים",
+    categoriesEmpty: "הוסיפו קטגוריות תורמים בדף האירוע: הסכומים שלהן יוצגו כאן.",
   },
   show: {
     totalLabel: "סכום שגויס",
@@ -508,6 +520,8 @@ export const he: typeof fr = {
     testBanner: "מצב בדיקה: התחייבות זו משמשת רק לבדיקת הערב.",
     goalLine: "יעד: {goal}",
     raised: "כבר הובטחו",
+    category: "הקטגוריה שלכם",
+    categoryNone: "ללא",
   },
   regie: {
     title: "עמדת שידור חי",
@@ -565,6 +579,9 @@ export const he: typeof fr = {
     source_MOBILE: "נייד",
     justNow: "עכשיו",
     minutesAgo: "לפני {count} דק׳",
+    category: "קטגוריה",
+    categoryNone: "ללא",
+    categoryTotals: "סכומים לפי קטגוריה",
   },
   team: {
     title: "צוות",

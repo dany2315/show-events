@@ -1,4 +1,5 @@
 import { clampBlock, type BlockType, type ShowBlock, type ShowConfig } from "./config";
+import { carveCategories } from "./categories-layout";
 
 /**
  * Moteur de mise en page intelligente du Studio (sans service externe, instantané).
@@ -12,7 +13,8 @@ export type LayoutPreset = (typeof LAYOUT_PRESETS)[number];
 
 type Rect = { x: number; y: number; w: number; h: number };
 type PresetDef = {
-  rects: Record<BlockType, Rect>;
+  /** Le bloc « Catégories » n'a pas d'emplacement propre : il est taillé dans la liste des dons. */
+  rects: Record<Exclude<BlockType, "categories">, Rect>;
   align?: Partial<Record<BlockType, ShowBlock["align"]>>;
   donations: ShowConfig["donations"];
 };
@@ -90,11 +92,15 @@ export function applyPreset(config: ShowConfig, preset: LayoutPreset, rtl: boole
   return {
     ...config,
     donations: { ...def.donations },
-    blocks: config.blocks.map((block) => {
-      const rect = def.rects[block.type];
-      const x = rtl ? 100 - rect.x - rect.w : rect.x;
-      return clampBlock({ ...block, ...rect, x, align: def.align?.[block.type] ?? defaultAlign(block.type) });
-    }),
+    blocks: carveCategories(
+      config.blocks.map((block) => {
+        if (block.type === "categories") return block;
+        const rect = def.rects[block.type];
+        const x = rtl ? 100 - rect.x - rect.w : rect.x;
+        return clampBlock({ ...block, ...rect, x, align: def.align?.[block.type] ?? defaultAlign(block.type) });
+      }),
+      rtl,
+    ),
   };
 }
 
@@ -104,7 +110,7 @@ export function autoLayout(config: ShowConfig, rtl: boolean) {
 }
 
 function defaultAlign(type: BlockType): ShowBlock["align"] {
-  return type === "total" || type === "goal" || type === "qrcode" ? "center" : "start";
+  return type === "total" || type === "goal" || type === "qrcode" || type === "categories" ? "center" : "start";
 }
 
 /* ─── Chevauchements ──────────────────────────────────────────────────── */

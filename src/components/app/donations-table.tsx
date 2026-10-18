@@ -9,10 +9,21 @@ import { formatMoney } from "@/lib/money";
 import { formatTime, formatShortDate } from "@/lib/dates";
 import type { AdminDonationWithContact } from "@/lib/regie";
 import type { CurrencyCode } from "@/lib/constants";
+import type { CategoryDef } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 
 /** Tableau des promesses de la fiche événement (administrateurs uniquement : coordonnées visibles). */
-export function DonationsTable({ donations, currency, exportUrl }: { donations: AdminDonationWithContact[]; currency: CurrencyCode; exportUrl?: string }) {
+export function DonationsTable({
+  donations,
+  categories = [],
+  currency,
+  exportUrl,
+}: {
+  donations: AdminDonationWithContact[];
+  categories?: CategoryDef[];
+  currency: CurrencyCode;
+  exportUrl?: string;
+}) {
   const { t, locale } = useI18n();
   const [filter, setFilter] = useState<"all" | "real" | "fictitious">("all");
   const rows = useMemo(
@@ -53,6 +64,7 @@ export function DonationsTable({ donations, currency, exportUrl }: { donations: 
               <tr className="border-b">
                 <th className="px-5 py-3 text-start font-medium">{t.eventDetail.donor}</th>
                 <th className="px-3 py-3 text-start font-medium">{t.eventDetail.contact}</th>
+                {categories.length > 0 && <th className="px-3 py-3 text-start font-medium">{t.eventDetail.category}</th>}
                 <th className="px-3 py-3 text-start font-medium">{t.common.date}</th>
                 <th className="px-3 py-3 text-start font-medium">{t.eventDetail.source}</th>
                 <th className="px-5 py-3 text-end font-medium">{t.common.amount}</th>
@@ -61,6 +73,7 @@ export function DonationsTable({ donations, currency, exportUrl }: { donations: 
             <tbody>
               {rows.map((d) => {
                 const fullName = [d.firstName, d.lastName].filter(Boolean).join(" ");
+                const category = d.categoryId ? categories.find((c) => c.id === d.categoryId) : undefined;
                 return (
                   <tr key={d.id} className="border-b last:border-0">
                     <td className="px-5 py-3">
@@ -98,6 +111,18 @@ export function DonationsTable({ donations, currency, exportUrl }: { donations: 
                         <span className="text-muted-foreground">{t.common.unknown}</span>
                       )}
                     </td>
+                    {categories.length > 0 && (
+                      <td className="px-3 py-3">
+                        {category ? (
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium">
+                            <span className="size-2 rounded-full" style={{ background: category.color }} aria-hidden />
+                            {category.name}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{t.common.unknown}</span>
+                        )}
+                      </td>
+                    )}
                     <td className="tabular px-3 py-3 text-muted-foreground">
                       {formatShortDate(d.createdAt, locale)} · {formatTime(d.createdAt, locale)}
                     </td>

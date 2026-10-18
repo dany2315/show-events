@@ -196,6 +196,7 @@ model Event {
   layout           ShowLayout?
   accesses         EventAccess[]
   outbox           OutboxEvent[]
+  categories       DonorCategory[]
 
   @@index([organizationId, date])
   @@map("event")
@@ -231,12 +232,33 @@ model Donation {
   updatedAt      DateTime       @updatedAt
   event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   createdBy      User?          @relation("DonationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// Catégorie de donateurs choisie (facultative) ; détachée si la catégorie est supprimée.
+  categoryId     String?
+  category       DonorCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, idempotencyKey])
   @@index([eventId, createdAt])
   @@index([eventId, ipHash, createdAt])
   @@index([eventId, deviceHash, createdAt])
+  @@index([eventId, categoryId])
   @@map("donation")
+}
+
+/// Catégories de donateurs d'un événement (au plus 3), avec un total affiché sur l'écran.
+model DonorCategory {
+  id        String     @id @default(cuid())
+  eventId   String
+  name      String
+  /// Couleur au format #rrggbb
+  color     String
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  donations Donation[]
+
+  @@index([eventId, position])
+  @@map("donor_category")
 }
 
 model ShowLayout {

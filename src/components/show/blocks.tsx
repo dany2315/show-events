@@ -7,7 +7,7 @@ import { formatMoney } from "@/lib/money";
 import type { AppLocale, CurrencyCode } from "@/lib/constants";
 import type { DonationAnimation, ShowBlock, ShowConfig } from "@/lib/show/config";
 import type { LiveEventInfo, PublicDonation } from "@/lib/live/types";
-import type { Dictionary } from "@/i18n/dictionaries";
+import { dictionaries, type Dictionary } from "@/i18n/dictionaries";
 import { AnimatedAmount } from "./animated-amount";
 import { fitFontSize, initials, typo } from "./fit";
 
@@ -45,7 +45,70 @@ export function ShowBlockContent(props: BlockProps) {
       return <MessageBlock {...props} />;
     case "qrcode":
       return <QrBlock {...props} />;
+    case "categories":
+      return <CategoriesBlock {...props} />;
   }
+}
+
+/**
+ * Totaux par catégorie de donateurs : une carte par catégorie (pastille de couleur, nom, total).
+ * Côte à côte dans un bandeau, l'une sous l'autre dans une colonne. Couleurs du show (--show-*),
+ * la couleur de la catégorie ne sert qu'aux accents : lisible sur tous les arrière-plans.
+ */
+function CategoriesBlock({ block, width, height, ctx }: BlockProps) {
+  const categories = ctx.event.categories ?? [];
+  if (categories.length === 0) {
+    if (!ctx.editing) return null;
+    return (
+      <div
+        className="flex size-full items-center justify-center rounded-[24px] border-2 border-dashed px-[4%] text-center"
+        style={{ borderColor: "var(--show-panel-border)", color: "var(--show-muted)", fontSize: Math.max(14, Math.min(height * 0.18, width * 0.03)) }}
+      >
+        {dictionaries[ctx.locale].studio.categoriesEmpty}
+      </div>
+    );
+  }
+  const row = width / height >= 2.4;
+  const n = categories.length;
+  const gap = Math.min(width, height) * (row ? 0.12 : 0.05);
+  const cardW = row ? (width - gap * (n - 1)) / n : width;
+  const cardH = row ? height : (height - gap * (n - 1)) / n;
+  const longest = Math.max(...categories.map((c) => formatMoney(c.total, ctx.event.currency, ctx.locale).length), 5);
+  const amountFs = Math.min(cardH * (row ? 0.42 : 0.4), (cardW * 0.82) / (longest * 0.6)) * block.fontScale;
+  const nameFs = Math.max(12, Math.min(cardH * 0.2, amountFs * 0.42));
+  const pad = Math.min(cardW, cardH) * 0.14;
+  return (
+    <div data-categories className="flex size-full" style={{ flexDirection: row ? "row" : "column", gap }}>
+      {categories.map((c) => (
+        <div
+          key={c.id}
+          data-category={c.name}
+          className="show-panel relative flex min-w-0 flex-1 flex-col justify-center overflow-hidden rounded-[22px]"
+          style={{
+            paddingInline: pad,
+            alignItems: justify[block.align],
+            textAlign: block.align,
+            backgroundImage: `linear-gradient(135deg, color-mix(in oklab, ${c.color} 24%, transparent), transparent 65%)`,
+          }}
+        >
+          <span aria-hidden className="absolute inset-y-0 start-0" style={{ width: Math.max(4, pad * 0.28), background: c.color }} />
+          <span className="flex max-w-full items-center font-semibold uppercase" style={{ fontSize: nameFs, gap: nameFs * 0.5, letterSpacing: "0.16em", color: "var(--show-muted)" }}>
+            <span aria-hidden className="inline-block shrink-0 rounded-full" style={{ width: nameFs * 0.62, height: nameFs * 0.62, background: c.color, boxShadow: `0 0 ${nameFs}px ${c.color}` }} />
+            <span className="truncate">{c.name}</span>
+          </span>
+          <span data-category-total className="tabular block font-extrabold leading-none whitespace-nowrap" style={{ fontSize: amountFs, marginTop: nameFs * 0.45 }}>
+            <AnimatedAmount
+              value={c.total}
+              currency={ctx.event.currency}
+              locale={ctx.locale}
+              animate={ctx.animate && ctx.config.animation.counter === "roll"}
+              className="inline-block"
+            />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function LogoBlock({ block, width, height, ctx }: BlockProps) {
@@ -182,6 +245,7 @@ const DonationsBlock = memo(function DonationsBlock({ block, width, height, ctx 
   const listRef = useRef<HTMLDivElement>(null);
   const known = useRef<Set<string> | null>(null);
   const style = ctx.config.animation.donation;
+  const categoryColor = (id: string | null | undefined) => (id ? (ctx.event.categories?.find((c) => c.id === id)?.color ?? null) : null);
 
   useLayoutEffect(() => {
     const el = listRef.current;
@@ -239,7 +303,12 @@ const DonationsBlock = memo(function DonationsBlock({ block, width, height, ctx 
                 transition: "background 1.2s ease",
               }}
             >
-              <span className="min-w-0 truncate font-medium">{d.donorName}</span>
+              <span className="flex min-w-0 items-center font-medium" style={{ gap: fs * 0.4 }}>
+                {categoryColor(d.categoryId) && (
+                  <span aria-hidden className="inline-block shrink-0 rounded-full" style={{ width: fs * 0.36, height: fs * 0.36, background: categoryColor(d.categoryId)! }} />
+                )}
+                <span className="truncate">{d.donorName}</span>
+              </span>
               <span className="tabular shrink-0 font-bold" style={{ color: "var(--show-accent)" }}>
                 {formatMoney(d.amount, ctx.event.currency, ctx.locale)}
               </span>

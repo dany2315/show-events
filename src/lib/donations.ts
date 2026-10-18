@@ -53,6 +53,8 @@ export type RecordDonationInput = {
   email?: string | null;
   /** Affiché « Anonyme » sur l'écran. */
   anonymous?: boolean;
+  /** Catégorie de donateurs (ignorée si elle n'appartient pas à l'événement). */
+  categoryId?: string | null;
   amount: number;
   isFictitious: boolean;
   source: "MANUAL" | "MOBILE";
@@ -96,6 +98,7 @@ export async function recordDonation(input: RecordDonationInput) {
   const phone = input.phone ? normalizePhone(input.phone) : null;
   if (input.phone && !phone) throw new DonationError("INVALID", "Téléphone invalide");
   const email = input.email ? input.email.trim().toLowerCase().slice(0, MAX_EMAIL_LENGTH) : null;
+  const categoryId = input.categoryId || null;
   if (!Number.isInteger(input.amount) || input.amount <= 0 || input.amount > MAX_DONATION_AMOUNT) {
     throw new DonationError("INVALID", "Montant invalide");
   }
@@ -132,14 +135,15 @@ export async function recordDonation(input: RecordDonationInput) {
           ) < ${PUBLIC_RATE_LIMIT.perDevice}::int)
         RETURNING e.id, e.currency, e.status, e.locale, e."liveTotal", e."liveCount"
       ), ins AS (
-        INSERT INTO "donation" (id, "eventId", "donorName", "firstName", "lastName", phone, email, "isAnonymous", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "deviceHash", "createdById", "createdAt", "updatedAt")
+        INSERT INTO "donation" (id, "eventId", "donorName", "firstName", "lastName", phone, email, "isAnonymous", "categoryId", amount, currency, "isFictitious", "isTest", source, "idempotencyKey", "ipHash", "deviceHash", "createdById", "createdAt", "updatedAt")
         SELECT ${id}, ev.id,
                COALESCE(${shownName}::text, CASE WHEN ev.locale = 'he' THEN ${anonymousLabel("he")}::text ELSE ${anonymousLabel("fr")}::text END),
                ${identity.firstName}::text, ${identity.lastName}::text, ${phone}::text, ${email}::text, ${identity.anonymous}::boolean,
+               (SELECT c.id FROM "donor_category" c WHERE c.id = ${categoryId}::text AND c."eventId" = ev.id),
                ${input.amount}::int, ev.currency, ${isFictitious}::boolean, ev.status = 'TEST', ${input.source}::"DonationSource",
                ${key}::text, ${ipHash}::text, ${deviceHash}::text, ${input.createdById ?? null}::text, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC'
         FROM ev
-        RETURNING id, "donorName", amount, "isFictitious", "createdAt"
+        RETURNING id, "donorName", amount, "isFictitious", "categoryId", "createdAt"
       ), ob AS (
         -- Charge utile publique (écrans, temps réel) : jamais de coordonnées du donateur.
         INSERT INTO "outbox_event" ("eventId", type, payload, attempts, "createdAt")
@@ -147,7 +151,7 @@ export async function recordDonation(input: RecordDonationInput) {
           jsonb_build_object(
             'type', 'donation.created',
             'donation', jsonb_build_object(
-              'id', ins.id, 'donorName', ins."donorName", 'amount', ins.amount,
+              'id', ins.id, 'donorName', ins."donorName", 'amount', ins.amount, 'categoryId', ins."categoryId",
               'createdAt', to_char(ins."createdAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
             'total', ev."liveTotal", 'count', ev."liveCount"),
           0, now() AT TIME ZONE 'UTC'
@@ -225,6 +229,8 @@ export async function updateDonation(input: {
   anonymous?: boolean;
   amount?: number;
   isFictitious?: boolean;
+  /** Catégorie de donateurs : null la retire. */
+  categoryId?: string | null;
 }) {
   return prisma.$transaction(async (tx) => {
     await lockEvent(tx, input.eventId);
@@ -246,6 +252,13 @@ export async function updateDonation(input: {
       data.amount = input.amount;
     }
     if (input.isFictitious !== undefined && before.source === "MANUAL") data.isFictitious = input.isFictitious;
+    if (input.categoryId !== undefined) {
+      const category = input.categoryId
+        ? await tx.donorCategory.findFirst({ where: { id: input.categoryId, eventId: input.eventId }, select: { id: true } })
+        : null;
+      if (input.categoryId && !category) throw new DonationError("INVALID", "Catégorie inconnue");
+      data.category = category ? { connect: { id: category.id } } : { disconnect: true };
+    }
     const donation = await tx.donation.update({ where: { id: before.id }, data });
     if (donation.amount !== before.amount) {
       await tx.event.update({ where: { id: input.eventId }, data: { liveTotal: { increment: donation.amount - before.amount } } });
@@ -254,6 +267,8 @@ export async function updateDonation(input: {
     await appendOutbox(tx, input.eventId, {
       type: "donation.updated",
       donation: toPublicDonation(donation),
+      // Ancienne part de la promesse : les écrans corrigent les totaux par catégorie.
+      previous: { amount: before.amount, categoryId: before.categoryId },
       total: totals.total,
       count: totals.count,
     });
@@ -283,6 +298,7 @@ export async function deleteDonation(input: { donationId: string; eventId: strin
     await appendOutbox(tx, input.eventId, {
       type: "donation.deleted",
       donationId: before.id,
+      removed: { amount: before.amount, categoryId: before.categoryId },
       total: totals.total,
       count: totals.count,
     });

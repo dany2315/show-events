@@ -13,6 +13,7 @@ import { hashPassword } from "better-auth/crypto";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient, type Prisma } from "../src/generated/prisma/client";
 import { defaultShowConfig, type ThemeId } from "../src/lib/show/config";
+import { revealCategoriesBlock } from "../src/lib/show/categories-layout";
 import { deriveAccessToken, hashToken, newAccessId } from "../src/lib/tokens";
 
 loadEnv({ path: ".env.local", quiet: true });
@@ -88,11 +89,15 @@ async function ensureEvent(input: {
   subtitle: string;
   message: string;
   donations: Array<[string, number, boolean?]>;
+  /** Catégories de donateurs (nom, couleur) : les promesses y sont réparties à tour de rôle. */
+  categories?: Array<[string, string]>;
   createdById: string;
 }) {
   const existing = await prisma.event.findFirst({ where: { organizationId: input.organizationId, name: input.name } });
   if (existing) return existing;
-  const config = defaultShowConfig(input.theme);
+  const config = input.categories?.length
+    ? revealCategoriesBlock(defaultShowConfig(input.theme), input.locale === "he")
+    : defaultShowConfig(input.theme);
   config.texts.subtitle = input.subtitle;
   config.texts.message = input.message;
   const event = await prisma.event.create({
@@ -113,6 +118,10 @@ async function ensureEvent(input: {
     const accessId = newAccessId();
     await prisma.eventAccess.create({ data: { id: accessId, eventId: event.id, type, tokenHash: hashToken(deriveAccessToken(accessId)) } });
   }
+  const categoryIds: string[] = [];
+  for (const [position, [name, color]] of (input.categories ?? []).entries()) {
+    categoryIds.push((await prisma.donorCategory.create({ data: { eventId: event.id, name, color, position } })).id);
+  }
   const start = Date.now() - input.donations.length * 90_000;
   let i = 0;
   for (const [donorName, amount, fictitious] of input.donations) {
@@ -127,6 +136,7 @@ async function ensureEvent(input: {
         firstName,
         lastName: anonymous ? null : rest.join(" ") || null,
         isAnonymous: anonymous,
+        categoryId: categoryIds.length && i % 4 !== 3 ? categoryIds[i % categoryIds.length] : null,
         phone: mobile ? `+3360000${String(1000 + i).slice(-4)}` : null,
         email: mobile ? `donateur${i + 1}@exemple.test` : null,
         amount,
@@ -172,6 +182,11 @@ async function main() {
     subtitle: "Ensemble pour un avenir meilleur",
     message: "Merci pour votre générosité ! Chaque promesse compte.",
     createdById: espoirAdmin.id,
+    categories: [
+      ["Parrains", "#e4b65c"],
+      ["Familles", "#5b9cf5"],
+      ["Entreprises", "#4fc28c"],
+    ],
     donations: [
       ["Famille Cohen", 5_000],
       ["David Lévy", 1_800],

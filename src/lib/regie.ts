@@ -8,6 +8,7 @@ export type AdminDonation = {
   firstName: string | null;
   lastName: string | null;
   isAnonymous: boolean;
+  categoryId: string | null;
   amount: number;
   isFictitious: boolean;
   isTest: boolean;
@@ -35,6 +36,7 @@ const donationSelect = {
   firstName: true,
   lastName: true,
   isAnonymous: true,
+  categoryId: true,
   amount: true,
   isFictitious: true,
   isTest: true,
@@ -49,6 +51,7 @@ type Row = {
   firstName: string | null;
   lastName: string | null;
   isAnonymous: boolean;
+  categoryId: string | null;
   amount: number;
   isFictitious: boolean;
   isTest: boolean;
@@ -64,6 +67,7 @@ function toAdminDonation(r: Row): AdminDonation {
     firstName: r.firstName,
     lastName: r.lastName,
     isAnonymous: r.isAnonymous,
+    categoryId: r.categoryId,
     amount: r.amount,
     isFictitious: r.isFictitious,
     isTest: r.isTest,

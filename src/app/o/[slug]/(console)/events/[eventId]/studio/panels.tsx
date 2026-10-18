@@ -15,6 +15,7 @@ import {
   ImagePlus,
   Loader2,
   QrCode,
+  Tags,
   Text,
   Trash2,
   Trophy,
@@ -63,6 +64,7 @@ export const BLOCK_ICONS: Record<BlockType, React.ComponentType<{ className?: st
   donations: List,
   message: Text,
   qrcode: QrCode,
+  categories: Tags,
 };
 
 function Section({ title, children, help }: { title: string; children: React.ReactNode; help?: string }) {

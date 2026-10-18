@@ -267,7 +267,15 @@ export const fr = {
     blocked_ORG_SUSPENDED: "Votre association est suspendue.",
     blockedHelp: "Contactez l'équipe Fundraising Live pour activer ou renouveler votre forfait.",
     creditOnLive: "Créer et tester un événement est gratuit : un crédit ne sera utilisé qu'au passage en direct ({count} disponible(s)).",
-    unlimitedOnLive: "Votre abonnement couvre le passage en direct de vos événements. Le mode test est illimité.",
+    unlimitedOnLive: "Votre abonnement couvre le passage en direct de vos événements. Le mode test est gratuit (10 promesses de test au maximum).",
+    fieldCategories: "Catégories de donateurs",
+    fieldCategoriesHelp: "Jusqu'à 3 catégories (ex. Parrains, Familles, Entreprises) : le donateur choisit la sienne et le total de chaque catégorie s'affiche sur l'écran.",
+    categoryName: "Nom de la catégorie {n}",
+    categoryNamePlaceholder: "Ex. Parrains",
+    categoryColor: "Couleur de la catégorie {n}",
+    addCategory: "Ajouter une catégorie",
+    removeCategory: "Retirer la catégorie {n}",
+    categoriesMax: "3 catégories au maximum.",
   },
   eventDetail: {
     overview: "Vue d'ensemble",
@@ -334,6 +342,7 @@ export const fr = {
     donor: "Donateur",
     contact: "Coordonnées",
     anonymousOf: "Anonyme à l'écran · {name}",
+    category: "Catégorie",
   },
   studio: {
     title: "Studio Show",
@@ -449,6 +458,9 @@ export const fr = {
     block_donations_desc: "Noms et montants",
     block_message_desc: "Message personnalisé",
     block_qrcode_desc: "Accès au formulaire",
+    block_categories: "Catégories",
+    block_categories_desc: "Total par catégorie de donateurs",
+    categoriesEmpty: "Ajoutez des catégories de donateurs dans la fiche de l'événement : leurs totaux s'afficheront ici.",
   },
   show: {
     totalLabel: "Montant collecté",
@@ -506,6 +518,8 @@ export const fr = {
     testBanner: "Mode test : cette promesse sert uniquement à tester la soirée.",
     goalLine: "Objectif : {goal}",
     raised: "déjà promis",
+    category: "Votre catégorie",
+    categoryNone: "Aucune",
   },
   regie: {
     title: "Régie Live",
@@ -563,6 +577,9 @@ export const fr = {
     source_MOBILE: "Mobile",
     justNow: "à l'instant",
     minutesAgo: "il y a {count} min",
+    category: "Catégorie",
+    categoryNone: "Aucune",
+    categoryTotals: "Totaux par catégorie",
   },
   team: {
     title: "Équipe",

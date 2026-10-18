@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { AccessError, assertEventAccess, assertOrgAccess } from "@/lib/dal";
-import { createEvent, EventCreationError } from "@/lib/events";
+import { createEvent, EventCreationError, syncEventCategories } from "@/lib/events";
+import { parseCategoriesField } from "@/lib/categories";
 import { prisma } from "@/lib/prisma";
 import { appendOutbox, flushOutbox, lockEvent } from "@/lib/live/server";
 import { rotateAccess } from "@/lib/event-access";
@@ -48,6 +49,7 @@ export async function createEventAction(organizationId: string, _prev: ActionRes
     const [kind, value] = start.split(":");
     const templateId = kind === "template" ? value : null;
     const theme = kind === "theme" && THEME_IDS.includes(value as (typeof THEME_IDS)[number]) ? (value as (typeof THEME_IDS)[number]) : "gala";
+    const categories = parseCategoriesField(formData.get("categories"));
     const event = await createEvent({
       organizationId,
       actorId: user.id,
@@ -55,6 +57,7 @@ export async function createEventAction(organizationId: string, _prev: ActionRes
       templateId,
       theme,
       isSuperAdmin: user.platformRole === "SUPER_ADMIN",
+      categories,
     });
     target = `/o/${org.slug}/events/${event.id}`;
   } catch (error) {
@@ -76,18 +79,24 @@ export async function updateEventAction(_prev: ActionResult | null, formData: Fo
       currency: formData.get("currency"),
       locale: formData.get("locale"),
     });
+    const categories = parseCategoriesField(formData.get("categories"));
     const { user, event } = await assertEventAccess(input.eventId, "event.manage");
     const hasDonations = (await prisma.donation.count({ where: { eventId: event.id, deletedAt: null } })) > 0;
-    await prisma.event.update({
-      where: { id: event.id },
-      data: {
-        name: input.name,
-        date: input.date,
-        goalAmount: input.goalAmount,
-        locale: input.locale,
-        // La devise est figée dès qu'une promesse existe (montants enregistrés dans cette devise).
-        ...(hasDonations ? {} : { currency: input.currency }),
-      },
+    await prisma.$transaction(async (tx) => {
+      // Verrou de l'événement : les promesses en cours d'écriture voient des catégories cohérentes.
+      await lockEvent(tx, event.id);
+      await tx.event.update({
+        where: { id: event.id },
+        data: {
+          name: input.name,
+          date: input.date,
+          goalAmount: input.goalAmount,
+          locale: input.locale,
+          // La devise est figée dès qu'une promesse existe (montants enregistrés dans cette devise).
+          ...(hasDonations ? {} : { currency: input.currency }),
+        },
+      });
+      await syncEventCategories(tx, event.id, categories, input.locale);
     });
     await audit(prisma, { organizationId: event.organizationId, actorId: user.id, action: "event.update", entityType: "Event", entityId: event.id });
     await notifyScreens(event.id);

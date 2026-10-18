@@ -16,6 +16,7 @@ import {
   type CurrencyCode,
 } from "@/lib/constants";
 import { looksLikeEmail, normalizePhone } from "@/lib/donor";
+import { contrastText, type CategoryDef } from "@/lib/categories";
 import { initials } from "@/components/show/fit";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -29,6 +30,7 @@ type EventInfo = {
   locale: AppLocale;
   goalAmount: number;
   status: "DRAFT" | "TEST" | "LIVE" | "ENDED";
+  categories: CategoryDef[];
 };
 
 function newKey() {
@@ -55,6 +57,7 @@ export function DonateForm({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [amountText, setAmountText] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
@@ -101,6 +104,7 @@ export function DonateForm({
           phone: phone.trim(),
           email: email.trim(),
           anonymous,
+          categoryId,
           amount,
           idempotencyKey: keyRef.current,
           website: String(form.get("website") ?? ""),
@@ -297,6 +301,42 @@ export function DonateForm({
               dir="ltr"
             />
 
+            {event.categories.length > 0 && (
+              <fieldset className="grid gap-2">
+                <legend className="mb-1.5 text-sm font-medium">
+                  {t.category}
+                  <span className="ms-1 font-normal" style={{ color: "var(--show-muted)" }}>
+                    ({dictionaries[locale].common.optional})
+                  </span>
+                </legend>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t.category}>
+                  {[{ id: null, name: t.categoryNone, color: null } as const, ...event.categories].map((c) => {
+                    const active = categoryId === c.id;
+                    return (
+                      <button
+                        key={c.id ?? "none"}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setCategoryId(c.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-all"
+                        style={
+                          !active
+                            ? { borderColor: "var(--show-panel-border)" }
+                            : c.color
+                              ? { background: c.color, color: contrastText(c.color), borderColor: "transparent" }
+                              : { background: "var(--show-accent)", color: dark ? "#111" : "#fff", borderColor: "transparent" }
+                        }
+                      >
+                        {c.color && <span aria-hidden className="size-2.5 rounded-full" style={{ background: active ? "currentColor" : c.color }} />}
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            )}
+
             <fieldset className="grid gap-2">
               <legend className="mb-1.5 text-sm font-medium">{t.amount}</legend>
               <div className="grid grid-cols-3 gap-2">
@@ -357,8 +397,8 @@ export function DonateForm({
             </button>
             <div className="grid gap-1.5 text-center text-xs" style={{ color: "var(--show-muted)" }}>
               <p>{t.promiseNote}</p>
-              <p className="flex items-center justify-center gap-1.5">
-                <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
+              <p className="text-balance">
+                <ShieldCheck className="-mt-0.5 me-1 inline size-3.5" aria-hidden />
                 {t.consent}
               </p>
             </div>

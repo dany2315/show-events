@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Tags, X } from "lucide-react";
+import { fmt } from "@/i18n/format";
+import { CATEGORY_COLORS, MAX_CATEGORIES, MAX_CATEGORY_NAME_LENGTH, type CategoryDef } from "@/lib/categories";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,7 @@ type Props = {
   action: (prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
   mode: "create" | "edit";
   eventId?: string;
-  defaults: { name?: string; date?: string; goalAmount?: number; currency: CurrencyCode; locale: AppLocale };
+  defaults: { name?: string; date?: string; goalAmount?: number; currency: CurrencyCode; locale: AppLocale; categories?: CategoryDef[] };
   templates?: { id: string; name: string; theme: string }[];
   currencyLocked?: boolean;
   submitLabel: string;
@@ -38,6 +40,9 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
   const [currency, setCurrency] = useState<CurrencyCode>(defaults.currency);
   const [eventLocale, setEventLocale] = useState<AppLocale>(defaults.locale);
   const [start, setStart] = useState("theme:gala");
+  const [categories, setCategories] = useState<EditableCategory[]>(() =>
+    (defaults.categories ?? []).map((c) => ({ key: c.id, id: c.id, name: c.name, color: c.color })),
+  );
   const [localDate, setLocalDate] = useState(() => toLocalInput(defaults.date));
   const isoDate = useMemo(() => (localDate ? new Date(localDate).toISOString() : ""), [localDate]);
 
@@ -64,6 +69,11 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
       <input type="hidden" name="currency" value={currency} />
       <input type="hidden" name="locale" value={eventLocale} />
       <input type="hidden" name="start" value={start} />
+      <input
+        type="hidden"
+        name="categories"
+        value={JSON.stringify(categories.filter((c) => c.name.trim()).map((c) => ({ ...(c.id ? { id: c.id } : {}), name: c.name.trim(), color: c.color })))}
+      />
 
       <div className="grid gap-2">
         <Label htmlFor="name">{t.events.fieldName}</Label>
@@ -144,6 +154,8 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
         </div>
       </div>
 
+      <CategoriesEditor value={categories} onChange={setCategories} invalid={invalidField === "categories"} />
+
       {mode === "create" && (
         <fieldset className="grid gap-3">
           <legend className="text-sm font-medium">{t.events.fieldTemplate}</legend>
@@ -188,6 +200,68 @@ export function EventForm({ action, mode, eventId, defaults, templates = [], cur
         </Button>
       </div>
     </form>
+  );
+}
+
+type EditableCategory = { key: string; id?: string; name: string; color: string };
+
+/** Catégories de donateurs (au plus 3) : nom + couleur, total affiché sur l'écran. */
+function CategoriesEditor({ value, onChange, invalid }: { value: EditableCategory[]; onChange: (v: EditableCategory[]) => void; invalid: boolean }) {
+  const { t } = useI18n();
+  const patch = (key: string, p: Partial<EditableCategory>) => onChange(value.map((c) => (c.key === key ? { ...c, ...p } : c)));
+  const nextColor = CATEGORY_COLORS.find((col) => !value.some((c) => c.color === col)) ?? CATEGORY_COLORS[0];
+  return (
+    <fieldset className="grid gap-3" aria-invalid={invalid || undefined}>
+      <legend className="flex items-center gap-2 text-sm font-medium">
+        <Tags className="size-4 text-muted-foreground" />
+        {t.events.fieldCategories} <span className="font-normal text-muted-foreground">({t.common.optional})</span>
+      </legend>
+      <p className="-mt-1 text-xs text-muted-foreground">{t.events.fieldCategoriesHelp}</p>
+      {value.map((c, i) => (
+        <div key={c.key} className="flex flex-wrap items-center gap-2 rounded-2xl border bg-background/60 p-2.5 sm:flex-nowrap">
+          <span className="size-3 shrink-0 rounded-full" style={{ background: c.color }} aria-hidden />
+          <Input
+            value={c.name}
+            onChange={(e) => patch(c.key, { name: e.target.value })}
+            maxLength={MAX_CATEGORY_NAME_LENGTH}
+            placeholder={t.events.categoryNamePlaceholder}
+            aria-label={fmt(t.events.categoryName, { n: i + 1 })}
+            className="h-10 min-w-0 flex-1 basis-40"
+            aria-invalid={invalid && !c.name.trim()}
+          />
+          <div className="flex items-center gap-1" role="radiogroup" aria-label={fmt(t.events.categoryColor, { n: i + 1 })}>
+            {CATEGORY_COLORS.map((col) => (
+              <button
+                key={col}
+                type="button"
+                role="radio"
+                aria-checked={c.color === col}
+                aria-label={col}
+                onClick={() => patch(c.key, { color: col })}
+                className={cn("size-6 rounded-full border-2 transition-transform", c.color === col ? "scale-110 border-foreground" : "border-transparent hover:scale-105")}
+                style={{ background: col }}
+              />
+            ))}
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={() => onChange(value.filter((x) => x.key !== c.key))} aria-label={fmt(t.events.removeCategory, { n: i + 1 })}>
+            <X className="size-4" />
+          </Button>
+        </div>
+      ))}
+      {value.length < MAX_CATEGORIES ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="justify-self-start rounded-full"
+          onClick={() => onChange([...value, { key: `new-${Date.now()}-${value.length}`, name: "", color: nextColor }])}
+        >
+          <Plus className="size-4" />
+          {t.events.addCategory}
+        </Button>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t.events.categoriesMax}</p>
+      )}
+    </fieldset>
   );
 }
 

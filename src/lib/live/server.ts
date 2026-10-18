@@ -4,6 +4,7 @@ import { prisma } from "../prisma";
 import { normalizeShowConfig } from "../show/config";
 import { getAbly } from "./ably";
 import { toPublicDonation } from "./public";
+import type { CategoryDef, PublicCategory } from "../categories";
 import {
   channelName,
   EMPTY_CONTROL,
@@ -52,6 +53,24 @@ export async function computeBreakdown(eventId: string) {
     fictitiousTotal: fict?._sum.amount ?? 0,
     fictitiousCount: fict?._count._all ?? 0,
   };
+}
+
+/**
+ * Totaux par catégorie de donateurs, selon les mêmes règles que le total du show (`liveTotal`) :
+ * toutes les promesses non supprimées, réelles, fictives et (en mode test) de test.
+ */
+export async function computeCategoryTotals(eventId: string, defs: CategoryDef[], db: Tx | typeof prisma = prisma): Promise<PublicCategory[]> {
+  if (defs.length === 0) return [];
+  const rows = await db.donation.groupBy({
+    by: ["categoryId"],
+    where: { eventId, deletedAt: null, categoryId: { in: defs.map((c) => c.id) } },
+    _sum: { amount: true },
+    _count: { _all: true },
+  });
+  return defs.map((c) => {
+    const row = rows.find((r) => r.categoryId === c.id);
+    return { id: c.id, name: c.name, color: c.color, total: row?._sum.amount ?? 0, count: row?._count._all ?? 0 };
+  });
 }
 
 export async function appendOutbox(tx: Tx, eventId: string, message: LiveMessageInput) {
@@ -105,15 +124,18 @@ export function parseControl(value: unknown): LiveControl {
   };
 }
 
-export async function lastSeq(eventId: string) {
-  const row = await prisma.outboxEvent.findFirst({ where: { eventId }, orderBy: { seq: "desc" }, select: { seq: true } });
+export async function lastSeq(eventId: string, db: Tx | typeof prisma = prisma) {
+  const row = await db.outboxEvent.findFirst({ where: { eventId }, orderBy: { seq: "desc" }, select: { seq: true } });
   return row?.seq ?? 0;
 }
 
 /** État complet d'un événement pour l'écran géant (reconnexion, premier chargement). */
 export async function buildSnapshot(eventId: string, formUrl: string | null): Promise<LiveSnapshot | null> {
-  const [event, seq] = await Promise.all([
-    prisma.event.findUnique({
+  // Lecture cohérente (une seule image de la base) : les totaux par catégorie sont ensuite mis à jour
+  // par incréments côté client, ils doivent correspondre exactement au numéro de séquence renvoyé.
+  const read = await prisma.$transaction(async (tx) => {
+    const seq = await lastSeq(eventId, tx);
+    const event = await tx.event.findUnique({
       where: { id: eventId },
       select: {
         id: true,
@@ -131,14 +153,18 @@ export async function buildSnapshot(eventId: string, formUrl: string | null): Pr
           where: { deletedAt: null },
           orderBy: { createdAt: "desc" },
           take: SNAPSHOT_DONATIONS,
-          select: { id: true, donorName: true, amount: true, createdAt: true },
+          select: { id: true, donorName: true, amount: true, createdAt: true, categoryId: true },
         },
+        categories: { orderBy: { position: "asc" }, select: { id: true, name: true, color: true } },
       },
-    }),
-    lastSeq(eventId),
-  ]);
-  if (!event) return null;
-  const totals = await computeTotals(prisma, eventId);
+    });
+    if (!event) return null;
+    const totals = await computeTotals(tx, eventId);
+    const categories = await computeCategoryTotals(eventId, event.categories, tx);
+    return { seq, event, totals, categories };
+  }, { isolationLevel: "RepeatableRead" });
+  if (!read) return null;
+  const { seq, event, totals, categories } = read;
   return {
     seq,
     event: {
@@ -151,6 +177,7 @@ export async function buildSnapshot(eventId: string, formUrl: string | null): Pr
       status: event.status,
       logoUrl: event.logoUrl ?? event.organization.logoUrl,
       organizationName: event.organization.name,
+      categories,
     },
     total: totals.total,
     count: totals.count,

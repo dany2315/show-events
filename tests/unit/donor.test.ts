@@ -61,7 +61,7 @@ describe("confidentialité des données diffusées", () => {
       createdAt: new Date("2026-10-18T20:00:00Z"),
     };
     const shown = toPublicDonation(row);
-    expect(Object.keys(shown).sort()).toEqual(["amount", "createdAt", "donorName", "id"]);
+    expect(Object.keys(shown).sort()).toEqual(["amount", "categoryId", "createdAt", "donorName", "id"]);
     const json = JSON.stringify(shown);
     for (const secret of ["+33612345678", "sarah@exemple.fr", "isFictitious", "phone", "email"]) expect(json).not.toContain(secret);
   });
