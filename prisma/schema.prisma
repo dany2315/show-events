@@ -181,7 +181,7 @@ model Event {
   logoUrl          String?
   /// Page de la campagne de dons (http/https) : le donateur y est redirigé après sa promesse.
   campaignUrl      String?
-  /// État de pilotage du direct : { paused, overlay, overlayAt }
+  /// État de pilotage du direct : { paused, overlay, overlayAt, video }
   liveControl      Json          @default("{}")
   /// Compteurs du direct, maintenus atomiquement à chaque écriture de promesse
   /// (total public = promesses réelles + fictives, hors promesses supprimées).
@@ -199,6 +199,7 @@ model Event {
   accesses         EventAccess[]
   outbox           OutboxEvent[]
   categories       DonorCategory[]
+  videos           EventVideo[]
 
   @@index([organizationId, date])
   @@map("event")
@@ -330,6 +331,22 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@map("audit_log")
+}
+
+/// Vidéos préparées pour les intermèdes du direct (lancées en plein écran depuis la Régie).
+model EventVideo {
+  id        String   @id @default(cuid())
+  eventId   String
+  title     String
+  /// Source : lien YouTube / Vimeo / Dailymotion, fichier https (MP4 / WebM) ou média importé (/api/media/…)
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
+  @@map("event_video")
 }
 
 /// Outbox : chaque changement du direct est persisté avant diffusion (Ably),

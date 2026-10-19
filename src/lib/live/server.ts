@@ -4,6 +4,7 @@ import { prisma } from "../prisma";
 import { normalizeShowConfig } from "../show/config";
 import { getAbly } from "./ably";
 import { toPublicDonation } from "./public";
+import { parseLiveVideo } from "./video";
 import type { CategoryDef, PublicCategory } from "../categories";
 import {
   channelName,
@@ -121,6 +122,7 @@ export function parseControl(value: unknown): LiveControl {
     paused: Boolean(v.paused),
     overlay: typeof v.overlay === "string" && v.overlay.trim() ? v.overlay : null,
     overlayAt: typeof v.overlayAt === "string" ? v.overlayAt : null,
+    video: parseLiveVideo(v.video),
   };
 }
 

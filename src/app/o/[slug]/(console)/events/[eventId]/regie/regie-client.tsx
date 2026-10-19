@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Clapperboard,
   ExternalLink,
   Eye,
   EyeOff,
@@ -57,6 +58,8 @@ import { useHydrated } from "@/lib/use-hydrated";
 import { acceptsDonations, TEST_DONATION_LIMIT, testDonationsRemaining } from "@/lib/lifecycle";
 import type { EventStatusCode } from "@/lib/constants";
 import { EventStatusControl } from "@/components/app/event-status-control";
+import type { EventVideoItem } from "@/lib/videos";
+import { VideoPanel } from "./video-panel";
 
 function newKey() {
   return (crypto.randomUUID?.() ?? `${Date.now()}${Math.random()}`).replace(/[^A-Za-z0-9]/g, "").slice(0, 32);
@@ -68,16 +71,23 @@ export function RegieClient({
   links,
   backHref,
   isSuperAdmin,
+  organizationId,
+  blobEnabled,
+  initialVideos,
 }: {
   isSuperAdmin: boolean;
   snapshot: LiveSnapshot;
   initialRegie: RegieState;
   links: { formUrl: string; displayUrl: string };
   backHref: string;
+  organizationId: string;
+  blobEnabled: boolean;
+  initialVideos: EventVideoItem[];
 }) {
   const { t, locale } = useI18n();
   const eventId = snapshot.event.id;
-  const { state, status } = useLiveEvent({ kind: "event", eventId }, snapshot);
+  const { state, status, resync } = useLiveEvent({ kind: "event", eventId }, snapshot);
+  const liveVideo = state.control.video ?? null;
   const lowPower = useLowPower();
   const [regie, setRegie] = useState<RegieState>(initialRegie);
   const currency = state.event.currency;
@@ -190,16 +200,24 @@ export function RegieClient({
         <section className="[grid-area:controls]">
           <Controls eventId={eventId} paused={state.control.paused} overlay={state.control.overlay} />
         </section>
-        <section className="[grid-area:preview] self-start">
+        {/* Aperçu puis intermède vidéo : l'état « vidéo en cours » reste sous les yeux de la régie. */}
+        <section className="grid min-w-0 grid-cols-1 content-start gap-5 self-start [grid-area:preview]">
           <div className="overflow-hidden rounded-3xl border bg-card">
             <div className="flex items-center justify-between px-4 py-3 text-sm">
               <span className="flex items-center gap-2 font-medium">
                 <Eye className="size-4 text-muted-foreground" />
                 {t.studio.preview}
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="live-dot !size-1.5" /> {t.common.live}
-              </span>
+              {liveVideo ? (
+                <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-live" data-preview-video>
+                  <Clapperboard className="size-3.5 shrink-0" />
+                  <span className="truncate">{fmt(t.regie.videoPlayingTitle, { title: liveVideo.title ?? t.regie.videoUntitled })}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="live-dot !size-1.5" /> {t.common.live}
+                </span>
+              )}
             </div>
             <div className="aspect-video border-t">
               <ShowViewport className="size-full">
@@ -212,10 +230,19 @@ export function RegieClient({
                   formUrl={state.formUrl}
                   effect={state.effect}
                   lowPower={lowPower}
+                  count={state.count}
                 />
               </ShowViewport>
             </div>
           </div>
+          <VideoPanel
+            eventId={eventId}
+            organizationId={organizationId}
+            blobEnabled={blobEnabled}
+            initialVideos={initialVideos}
+            video={liveVideo}
+            onControlSent={() => void resync().catch(() => undefined)}
+          />
         </section>
       </div>
     </div>

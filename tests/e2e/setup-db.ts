@@ -65,10 +65,14 @@ async function main() {
   const ended = await createEvent(org.id, "Gala terminé E2E", "ENDED");
   const concurrency = await Promise.all([1, 2, 3].map((n) => createEvent(org.id, `Charge E2E ${n}`, "LIVE")));
   const wifi = await createEvent(org.id, "Salle Wi-Fi E2E", "LIVE");
+  // Utilisateur Show d'une autre association : ne doit jamais pouvoir piloter nos événements.
+  const outsiderOrg = await prisma.organization.create({ data: { name: `E2E Autre association ${stamp}`, slug: `e2e-autre-${stamp}` } });
+  const outsider = await createUser("Opérateur extérieur E2E", `outsider-${stamp}@e2e.test`, password);
+  await prisma.membership.create({ data: { userId: outsider.id, organizationId: outsiderOrg.id, role: "SHOW_OPERATOR" } });
 
   writeFileSync(
     "tests/e2e/.state.json",
-    JSON.stringify({ stamp, orgId: org.id, orgSlug: org.slug, adminEmail: admin.email, password, live, ended, concurrency, wifi, rehearsal }, null, 2),
+    JSON.stringify({ stamp, orgId: org.id, orgSlug: org.slug, adminEmail: admin.email, outsiderEmail: outsider.email, password, live, ended, concurrency, wifi, rehearsal }, null, 2),
   );
   console.log(`[e2e] association de test ${org.slug} prête`);
 }

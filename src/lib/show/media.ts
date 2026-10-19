@@ -91,8 +91,8 @@ export function embedUrl(source: EmbedSource, opts: { muted: boolean; loop: bool
       portrait: "0",
       dnt: "1",
       texttrack: "false",
-      // Mode arrière-plan : aucune interface. Vimeo l'impose muet.
-      ...(opts.muted ? { background: "1" } : {}),
+      // Mode arrière-plan (fond muet en boucle) : aucune interface. Vimeo l'impose muet et en boucle.
+      ...(opts.muted && opts.loop ? { background: "1" } : {}),
       api: "1",
     });
     return `https://player.vimeo.com/video/${source.id}?${params}`;
@@ -115,10 +115,10 @@ export function embedUrl(source: EmbedSource, opts: { muted: boolean; loop: bool
 /**
  * Bandeaux d'interface (titre en haut, logo / barre en bas) que les plateformes affichent
  * parfois malgré tout : hauteur en px du lecteur, rognée en agrandissant légèrement la vidéo.
- * Vimeo en mode arrière-plan n'affiche rien : aucun rognage.
+ * Vimeo en mode arrière-plan (muet en boucle) n'affiche rien : aucun rognage.
  */
-export function chromeBand(source: EmbedSource, muted: boolean) {
-  if (source.kind === "vimeo" && muted) return 0;
+export function chromeBand(source: EmbedSource, background: boolean) {
+  if (source.kind === "vimeo" && background) return 0;
   return source.kind === "youtube" ? 64 : 52;
 }
 

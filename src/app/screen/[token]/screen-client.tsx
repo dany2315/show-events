@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Maximize, Minimize, WifiOff } from "lucide-react";
+import { Maximize, Minimize, Volume2, WifiOff } from "lucide-react";
 import { ShowStage } from "@/components/show/stage";
+import type { VideoReport } from "@/components/show/video-interlude";
 import { ShowViewport } from "@/components/show/viewport";
 import { useLowPower } from "@/components/show/use-low-power";
 import { useLiveEvent } from "@/components/show/use-live-event";
@@ -22,6 +23,39 @@ export function ScreenClient({ token, snapshot, forcedFormat = null }: { token: 
   const [idle, setIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const idleTimer = useRef<number | null>(null);
+  // Les navigateurs refusent la lecture avec le son tant que personne n'a cliqué sur la page :
+  // chaque geste « arme » l'écran pour les intermèdes vidéo.
+  const [audioArmed, setAudioArmed] = useState(0);
+
+  useEffect(() => {
+    const arm = () => setAudioArmed((n) => n + 1);
+    window.addEventListener("pointerdown", arm);
+    window.addEventListener("keydown", arm);
+    return () => {
+      window.removeEventListener("pointerdown", arm);
+      window.removeEventListener("keydown", arm);
+    };
+  }, []);
+
+  // Fin de vidéo, son bloqué / rétabli : signalé à la régie (quelques nouvelles tentatives si le réseau flanche).
+  const reportVideo = useCallback(
+    (runId: string, report: VideoReport) => {
+      const send = async (attempt: number) => {
+        try {
+          const res = await fetch(`/api/live/screen/${token}/video`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: report, runId }),
+          });
+          if (!res.ok && res.status >= 500) throw new Error(String(res.status));
+        } catch {
+          if (attempt < 3) window.setTimeout(() => void send(attempt + 1), 1500 * (attempt + 1));
+        }
+      };
+      void send(0);
+    },
+    [token],
+  );
 
   // Curseur et commandes masqués après quelques secondes d'inactivité.
   useEffect(() => {
@@ -101,25 +135,40 @@ export function ScreenClient({ token, snapshot, forcedFormat = null }: { token: 
           effect={state.effect}
           lowPower={lowPower}
           format={format}
+          count={state.count}
+          videoMode="screen"
+          audioArmed={audioArmed}
+          onVideoReport={reportVideo}
+          badge={
+            state.event.status === "TEST"
+              ? { label: t.testBadge, tone: "test" }
+              : state.event.status === "DRAFT"
+                ? { label: t.draftBadge, tone: "draft" }
+                : null
+          }
         />
       </ShowViewport>
-
-      {(state.event.status === "TEST" || state.event.status === "DRAFT") && (
-        <div
-          className={cn(
-            "pointer-events-none absolute start-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold tracking-[0.2em] shadow-lg",
-            state.event.status === "TEST" ? "bg-amber-400 text-black" : "bg-white/80 text-black",
-          )}
-        >
-          {state.event.status === "TEST" ? t.testBadge : t.draftBadge}
-        </div>
-      )}
 
       {status === "offline" && (
         <div className="absolute bottom-4 start-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
           <WifiOff className="size-3.5 text-red-400" />
           {t.offline}
         </div>
+      )}
+
+      {/* Premier affichage : un clic autorise le son des intermèdes vidéo (discret, masqué ensuite). */}
+      {audioArmed === 0 && (
+        <button
+          type="button"
+          data-enable-sound
+          className={cn(
+            "absolute bottom-4 end-4 flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur transition-opacity duration-500",
+            idle ? "pointer-events-none opacity-0" : "opacity-100",
+          )}
+        >
+          <Volume2 className="size-4" />
+          {t.enableSound}
+        </button>
       )}
 
       <button

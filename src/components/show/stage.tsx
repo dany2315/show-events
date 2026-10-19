@@ -8,12 +8,17 @@ import type { FormatId } from "@/lib/show/formats";
 import { formatBlocks } from "@/lib/show/smart-layout";
 import { getBackground, themeCssVars } from "@/lib/show/themes";
 import { formatMoney, goalProgress } from "@/lib/money";
-import type { LiveControl, LiveEventInfo, PublicDonation } from "@/lib/live/types";
+import type { LiveControl, LiveEventInfo, LiveVideo, PublicDonation } from "@/lib/live/types";
+import { interludeRecap } from "@/lib/live/video";
+import { placeBadge } from "@/lib/show/badge";
+import { cn } from "@/lib/utils";
 import { dictionaries } from "@/i18n/dictionaries";
+import { fmt } from "@/i18n/format";
 import { Ambient } from "./ambient";
 import { Backdrop } from "./backdrop";
 import { typo } from "./fit";
 import { ShowBlockContent, type BlockContext } from "./blocks";
+import { VideoInterlude, type VideoReport } from "./video-interlude";
 
 export type ShowEffect =
   | { id: number; kind: "donation"; donation: PublicDonation }
@@ -39,6 +44,18 @@ export type ShowStageProps = {
    * du direct (compteur, confettis, mise en lumière…) est conservé.
    */
   format?: FormatId;
+  /** Nombre de promesses (récapitulatif affiché après un intermède vidéo). */
+  count?: number;
+  /**
+   * Intermède vidéo : « screen » sur l'écran géant (son possible, fin et son bloqué signalés via
+   * `onVideoReport`), « preview » ailleurs (aperçu muet).
+   */
+  videoMode?: "screen" | "preview";
+  /** Gestes de l'utilisateur sur l'écran (0 : le navigateur refusera la lecture avec le son). */
+  audioArmed?: number;
+  onVideoReport?: (runId: string, report: VideoReport) => void;
+  /** Badge « MODE TEST » / « APERÇU » : placé automatiquement là où il ne recouvre aucun bloc. */
+  badge?: { label: string; tone: "test" | "draft" } | null;
   className?: string;
 };
 
@@ -61,6 +78,11 @@ export function ShowStage({
   wrapBlock,
   lowPower = false,
   format = "16:9",
+  count,
+  videoMode = "preview",
+  audioArmed = 0,
+  onVideoReport,
+  badge = null,
   className,
 }: ShowStageProps) {
   const locale = event.locale;
@@ -71,25 +93,49 @@ export function ShowStage({
   const k = Math.min(1, stage.width / 1600);
   const t = dictionaries[locale].show;
   const theme = getBackground(config.theme);
-  const animate = !control.paused;
+  // ─── Intermède vidéo ───
+  // Fin locale (fichier terminé sur cet écran) : on n'attend pas l'aller-retour serveur.
+  const [endedRun, setEndedRun] = useState<string | null>(null);
+  const liveVideo = control.video ?? null;
+  const video = liveVideo && liveVideo.id !== endedRun ? liveVideo : null;
+  const videoActive = video !== null;
+  const [leavingVideo, setLeavingVideo] = useState<LiveVideo | null>(null);
+  const [recap, setRecap] = useState<{ key: string; count: number; amount: number } | null>(null);
+  // Pendant la vidéo : pas de confettis, projecteur ni paliers (les promesses continuent d'arriver).
+  const animate = !control.paused && !videoActive;
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const confettiRef = useRef<confetti.CreateTypes | null>(null);
   // ─── Live → état d'affichage (ajusté pendant le rendu, sans effet en cascade) ───
-  const [tracked, setTracked] = useState<{ effect: ShowEffect | null; total: number; goal: number }>({
+  const [tracked, setTracked] = useState<{ effect: ShowEffect | null; total: number; goal: number; video: LiveVideo | null }>({
     effect: effect ?? null,
     total,
     goal: event.goalAmount,
+    video,
   });
   const [highlight, setHighlight] = useState<{ id: string; key: number } | null>(null);
   const [spotQueue, setSpotQueue] = useState<PublicDonation[]>([]);
   const [banner, setBanner] = useState<number | null>(null);
   const [milestone, setMilestone] = useState<{ key: number; big: boolean } | null>(null);
 
-  if (tracked.effect !== (effect ?? null) || tracked.total !== total || tracked.goal !== event.goalAmount) {
+  if (tracked.effect !== (effect ?? null) || tracked.total !== total || tracked.goal !== event.goalAmount || tracked.video?.id !== video?.id) {
     const prev = tracked;
-    setTracked({ effect: effect ?? null, total, goal: event.goalAmount });
-    if (effect && effect !== prev.effect) {
+    setTracked({ effect: effect ?? null, total, goal: event.goalAmount, video });
+    if (prev.video?.id !== video?.id) {
+      if (video) {
+        // Début de l'intermède : les surimpressions en cours sont abandonnées.
+        setSpotQueue([]);
+        setBanner(null);
+        setLeavingVideo(null);
+        setRecap(null);
+      } else if (prev.video) {
+        // Retour à la scène : fondu de sortie, puis récapitulatif des promesses arrivées pendant la vidéo.
+        setLeavingVideo(prev.video);
+        const summary = count === undefined || editing ? null : interludeRecap(prev.video, total, count);
+        setRecap(summary ? { key: prev.video.id, ...summary } : null);
+      }
+    }
+    if (effect && effect !== prev.effect && !videoActive) {
       if (effect.kind === "donation") {
         setHighlight({ id: effect.donation.id, key: effect.id });
         const threshold = config.animation.spotlightThreshold;
@@ -159,7 +205,7 @@ export function ShowStage({
 
   // ─── Effets visuels (moteur d'animation) ───
   useEffect(() => {
-    if (!effect) return;
+    if (!effect || videoActive) return;
     if (effect.kind === "donation" && !control.paused) pulseTotal();
     if (effect.kind === "celebrate") {
       burst("big");
@@ -170,7 +216,7 @@ export function ShowStage({
   }, [effect?.id]);
 
   useEffect(() => {
-    if (milestone) burst(milestone.big ? "big" : "small");
+    if (milestone && !videoActive) burst(milestone.big ? "big" : "small");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [milestone?.key]);
 
@@ -185,6 +231,24 @@ export function ShowStage({
     const timer = window.setTimeout(() => setBanner(null), 5200);
     return () => window.clearTimeout(timer);
   }, [banner]);
+
+  useEffect(() => {
+    if (!leavingVideo) return;
+    const timer = window.setTimeout(() => setLeavingVideo(null), 750);
+    return () => window.clearTimeout(timer);
+  }, [leavingVideo]);
+
+  useEffect(() => {
+    if (!recap) return;
+    const timer = window.setTimeout(() => setRecap(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [recap]);
+
+  // Confettis en cours effacés au lancement d'une vidéo.
+  const videoId = video?.id ?? null;
+  useEffect(() => {
+    if (videoId) confettiRef.current?.reset();
+  }, [videoId]);
 
   useEffect(() => {
     if (!spotlight) return;
@@ -218,7 +282,7 @@ export function ShowStage({
     >
       {/* Arrière-plan de la bibliothèque : décor statique (composé pour le format) + ambiance animée légère. */}
       <Backdrop theme={theme.id} width={stage.width} height={stage.height} />
-      <Ambient kind={theme.ambient} enabled={config.animation.ambient && !control.paused && !lowPower} />
+      <Ambient kind={theme.ambient} enabled={config.animation.ambient && !control.paused && !lowPower && !videoActive} />
 
       {blocks.map((block) => {
         if (!block.visible && !wrapBlock) return null;
@@ -226,7 +290,7 @@ export function ShowStage({
         const content = <ShowBlockContent block={block} width={px.width} height={px.height} ctx={ctx} />;
         if (wrapBlock) return <Fragment key={block.type}>{wrapBlock(block, content)}</Fragment>;
         return (
-          <div key={block.type} className="absolute" style={{ left: px.left, top: px.top, width: px.width, height: px.height }}>
+          <div key={block.type} data-block={block.type} className="absolute" style={{ left: px.left, top: px.top, width: px.width, height: px.height }}>
             {content}
           </div>
         );
@@ -266,7 +330,59 @@ export function ShowStage({
         </div>
       )}
 
+      {/* Récapitulatif au retour d'un intermède vidéo */}
+      {recap && !video && (
+        <div key={`recap:${recap.key}`} data-video-recap className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
+          <div className="show-recap-backdrop absolute inset-0" aria-hidden />
+          <div className="show-card-solid show-recap relative text-center" style={{ borderRadius: 40 * k, padding: `${44 * k}px ${88 * k}px`, maxWidth: stage.width * 0.9 }}>
+            <div className="font-bold uppercase" style={{ fontSize: 28 * k, letterSpacing: "0.3em", color: "var(--show-accent)" }}>
+              {t.videoRecapTitle}
+            </div>
+            <div className="show-display font-semibold text-balance" style={{ fontSize: 72 * k, lineHeight: 1.1, marginTop: 18 * k }}>
+              {recap.count === 1 ? t.videoRecapOne : fmt(t.videoRecapMany, { count: recap.count })}
+              <span className="opacity-50"> · </span>
+              <span className="tabular show-accent-text font-extrabold">{formatMoney(recap.amount, event.currency, locale)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {badge && <StageBadge badge={badge} blocks={blocks} stage={stage} />}
+
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 size-full" />
+
+      {/* Intermède vidéo plein écran : au-dessus de tout (surimpressions, confettis, badge). */}
+      {(video ?? leavingVideo) && (
+        <VideoInterlude
+          key={`video:${(video ?? leavingVideo)!.id}`}
+          video={(video ?? leavingVideo)!}
+          leaving={!video}
+          stage={stage}
+          mode={editing ? "preview" : videoMode}
+          audioArmed={audioArmed}
+          lowPower={lowPower}
+          label={t.videoPlaying}
+          onEnded={setEndedRun}
+          onReport={onVideoReport}
+        />
+      )}
+    </div>
+  );
+}
+
+function StageBadge({ badge, blocks, stage }: { badge: { label: string; tone: "test" | "draft" }; blocks: ShowBlock[]; stage: { width: number; height: number } }) {
+  const rects = blocks.filter((b) => b.visible).map((b) => blockToPixels(b, stage));
+  const slot = placeBadge(badge.label, rects, stage, Math.round(Math.max(18, Math.min(26, stage.height / 46))));
+  return (
+    <div
+      data-screen-badge
+      className={cn(
+        "pointer-events-none absolute z-[45] flex items-center justify-center whitespace-nowrap rounded-full font-bold shadow-lg",
+        badge.tone === "test" ? "bg-amber-400 text-black" : "bg-white/85 text-black",
+      )}
+      style={{ left: slot.left, top: slot.top, width: slot.width, height: slot.height, fontSize: slot.fontSize, letterSpacing: "0.2em" }}
+    >
+      {badge.label}
     </div>
   );
 }

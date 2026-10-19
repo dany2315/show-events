@@ -231,6 +231,28 @@
   }
 }
 
+/* Récapitulatif au retour d'un intermède vidéo : apparition, maintien, fondu de sortie. */
+.show-recap {
+  animation: show-recap 6.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes show-recap {
+  0% { opacity: 0; transform: translate3d(0, 28px, 0) scale(0.94); }
+  10% { opacity: 1; transform: none; }
+  88% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.98); }
+}
+/* Voile derrière le récapitulatif : la scène reste devinée, sans gêner la lecture. */
+.show-recap-backdrop {
+  background: color-mix(in oklab, var(--show-bg) 78%, transparent);
+  animation: show-recap-backdrop 6.4s ease both;
+}
+@keyframes show-recap-backdrop {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .show-lowpower .show-panel {
   backdrop-filter: none;
 }

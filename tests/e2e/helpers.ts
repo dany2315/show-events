@@ -7,6 +7,8 @@ export type E2EState = {
   orgId: string;
   orgSlug: string;
   adminEmail: string;
+  /** Utilisateur Show d'une autre association (même mot de passe). */
+  outsiderEmail: string;
   password: string;
   live: EventTokens;
   ended: EventTokens;

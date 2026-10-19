@@ -128,8 +128,19 @@ export const updateDonationSchema = z
   .refine((v) => Object.values(v).some((x) => x !== undefined));
 
 export const controlSchema = z.object({
-  action: z.enum(["pause", "resume", "overlay", "clearOverlay", "celebrate", "goal"]),
+  action: z.enum(["pause", "resume", "overlay", "clearOverlay", "celebrate", "goal", "videoStart", "videoMute", "videoStop"]),
   message: z.string().trim().max(160).optional(),
+  /** Intermède vidéo : vidéo préparée (videoId) ou lien lancé en direct (url, titre facultatif). */
+  videoId: z.string().min(1).max(64).optional(),
+  url: z.string().trim().max(2048).optional(),
+  title: z.string().trim().max(80).optional(),
+  muted: z.boolean().optional(),
+});
+
+/** Signalement de l'écran géant pendant un intermède vidéo (fin de lecture, son bloqué / rétabli). */
+export const screenVideoReportSchema = z.object({
+  action: z.enum(["ended", "soundBlocked", "soundOk"]),
+  runId: z.string().min(1).max(64),
 });
 
 /** Adresse web acceptée pour une redirection : http ou https uniquement (jamais javascript:, data:…). */
