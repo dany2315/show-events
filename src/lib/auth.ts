@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "./prisma";
+import { APP_NAME } from "./constants";
 
 function baseURL() {
   // Preview Vercel : l'URL de la branche prime (BETTER_AUTH_URL vise souvent localhost ou la production).
@@ -20,7 +21,7 @@ function baseURL() {
 }
 
 export const auth = betterAuth({
-  appName: "Fundraising Live",
+  appName: APP_NAME,
   baseURL: baseURL(),
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),

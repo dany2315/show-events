@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarPlus, LayoutTemplate, Plus, RadioTower } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,11 @@ import { formatDate } from "@/lib/dates";
 import { THEMES } from "@/lib/show/themes";
 import { getI18n } from "@/i18n/server";
 import { countLabel } from "@/i18n/format";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.events.title };
+}
 
 export default async function EventsPage({ params }: PageProps<"/o/[slug]/events">) {
   const { slug } = await params;

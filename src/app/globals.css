@@ -45,15 +45,16 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ─── Palette Fundraising Live ─────────────────────────────────────────────
-   Papier chaud + encre nuit + or de gala. Rouge « live » réservé au direct. */
+/* ─── Palette Pyramide ─────────────────────────────────────────────────────
+   Papier chaud + encre nuit + or de gala. Rouge « live » réservé au direct.
+   Alignée sur le kit de marque : nuit #14111f (ink, texte), or #c9973f, ivoire #f8f6f2 (fond). */
 :root {
   --background: #f8f6f2;
-  --foreground: #17141f;
+  --foreground: #14111f;
   --card: #ffffff;
-  --card-foreground: #17141f;
+  --card-foreground: #14111f;
   --popover: #ffffff;
-  --popover-foreground: #17141f;
+  --popover-foreground: #14111f;
   --primary: #1d1733;
   --primary-foreground: #fbf7ee;
   --secondary: #efebe3;

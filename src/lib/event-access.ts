@@ -1,24 +1,9 @@
 import "server-only";
-import { headers } from "next/headers";
+import { getAppUrl } from "./app-url";
 import { prisma } from "./prisma";
 import { deriveAccessToken, hashToken, newAccessId } from "./tokens";
 
 type AccessKind = "DONATION_FORM" | "DISPLAY";
-
-/** URL publique de l'application, déduite de la requête (fiable derrière Vercel) ou de l'environnement. */
-export async function getAppUrl() {
-  try {
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host");
-    if (host) {
-      const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-      return `${proto}://${host}`;
-    }
-  } catch {
-    // hors contexte de requête
-  }
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-}
 
 async function createAccess(eventId: string, type: AccessKind) {
   const id = newAccessId();

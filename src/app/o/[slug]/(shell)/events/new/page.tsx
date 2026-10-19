@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Info } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
@@ -8,6 +9,11 @@ import { getEventCreationCheck } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 import { getI18n } from "@/i18n/server";
 import { fmt } from "@/i18n/format";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.events.createTitle };
+}
 
 export default async function NewEventPage({ params }: PageProps<"/o/[slug]/events/new">) {
   const { slug } = await params;

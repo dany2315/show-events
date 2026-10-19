@@ -4,7 +4,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import gsap from "gsap";
 import QRCode from "qrcode";
 import { formatMoney } from "@/lib/money";
-import type { AppLocale, CurrencyCode } from "@/lib/constants";
+import { PREVIEW_FORM_URL, type AppLocale, type CurrencyCode } from "@/lib/constants";
 import type { DonationAnimation, ShowBlock, ShowConfig } from "@/lib/show/config";
 import type { LiveEventInfo, PublicDonation } from "@/lib/live/types";
 import { dictionaries, type Dictionary } from "@/i18n/dictionaries";
@@ -357,7 +357,7 @@ function QrBlock({ block, width, height, ctx }: BlockProps) {
   const captionH = captionFs * 2.8;
   const size = Math.max(40, Math.min(width, height - captionH));
   const [svg, setSvg] = useState<string | null>(null);
-  const url = ctx.formUrl ?? "https://fundraising.live/d/apercu";
+  const url = ctx.formUrl ?? PREVIEW_FORM_URL;
 
   useEffect(() => {
     let cancelled = false;

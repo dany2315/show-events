@@ -1,4 +1,4 @@
-// Fundraising Live — modèle de données MVP 1.0
+// Pyramide — modèle de données MVP 1.0
 // Montants stockés en unités monétaires entières (jamais en float).
 
 generator client {

@@ -7,6 +7,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { HeroDemo } from "@/components/landing/hero-demo";
 import { getCurrentUser } from "@/lib/dal";
 import { getI18n } from "@/i18n/server";
+import { CONTACT_EMAIL } from "@/lib/constants";
 import { LoginForm } from "./login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -33,7 +34,7 @@ export default async function LoginPage() {
           <LoginForm />
           <p className="mt-8 text-sm text-muted-foreground">
             {t.auth.noAccount}{" "}
-            <a href="mailto:contact@fundraising.live" className="font-medium text-foreground underline-offset-4 hover:underline">
+            <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium text-foreground underline-offset-4 hover:underline">
               {t.auth.contact}
             </a>
           </p>

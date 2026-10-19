@@ -1,10 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarPlus, ChevronRight, LayoutTemplate, MonitorPlay, Plus, RadioTower, Users, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageContainer, PageHeader } from "@/components/app/page-header";
 import { EventStatusBadge } from "@/components/app/event-status-badge";
 import { GoalBar } from "@/components/app/progress-ring";
-import { requireOrg } from "@/lib/dal";
+import { getOrgContext, requireOrg } from "@/lib/dal";
 import { getEventLinks } from "@/lib/event-access";
 import { listOrgEvents, pickFeaturedEvent, type EventSummary } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
@@ -15,6 +16,12 @@ import { countLabel, fmt } from "@/i18n/format";
 import { isSubscriptionPlan } from "@/lib/billing";
 import type { Dictionary } from "@/i18n/dictionaries";
 import type { AppLocale } from "@/lib/constants";
+
+export async function generateMetadata({ params }: PageProps<"/o/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const [ctx, { t }] = await Promise.all([getOrgContext(slug), getI18n()]);
+  return { title: ctx?.org.name ?? t.nav.dashboard };
+}
 
 export default async function OrgDashboard({ params }: PageProps<"/o/[slug]">) {
   const { slug } = await params;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { CreditCard } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
 import { requireOrg } from "@/lib/dal";
@@ -6,6 +7,11 @@ import { isSubscriptionPlan } from "@/lib/billing";
 import { formatShortDate } from "@/lib/dates";
 import { getI18n } from "@/i18n/server";
 import { SettingsForm } from "./settings-form";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.settings.title };
+}
 
 export default async function SettingsPage({ params }: PageProps<"/o/[slug]/settings">) {
   const { slug } = await params;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2, ChevronRight } from "lucide-react";
@@ -5,6 +6,11 @@ import { Brand } from "@/components/brand";
 import { listUserOrganizations, requireUser } from "@/lib/dal";
 import { getI18n } from "@/i18n/server";
 import { SignOutButton } from "@/components/app/sign-out-button";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.chooser.title };
+}
 
 /** Aiguillage après connexion : Super Admin, association unique ou choix d'association. */
 export default async function AppEntry() {

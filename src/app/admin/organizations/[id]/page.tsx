@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Ban, Building2, CheckCircle2, ExternalLink, LayoutTemplate, MonitorPlay, RadioTower, Trash2 } from "lucide-react";
@@ -6,7 +7,7 @@ import { PageContainer } from "@/components/app/page-header";
 import { ConfirmAction } from "@/components/app/confirm-action";
 import { EventStatusBadge } from "@/components/app/event-status-badge";
 import { deleteOrganizationAction, setOrgStatusAction } from "@/app/actions/organization";
-import { requireSuperAdmin } from "@/lib/dal";
+import { getCurrentUser, requireSuperAdmin } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { listOrgEvents } from "@/lib/queries";
 import { getEventLinks } from "@/lib/event-access";
@@ -15,6 +16,13 @@ import { formatShortDate, formatTime } from "@/lib/dates";
 import { getI18n } from "@/i18n/server";
 import { fmt } from "@/i18n/format";
 import { PlanForm } from "./plan-form";
+
+export async function generateMetadata({ params }: PageProps<"/admin/organizations/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const [user, { t }] = await Promise.all([getCurrentUser(), getI18n()]);
+  const org = user?.platformRole === "SUPER_ADMIN" ? await prisma.organization.findUnique({ where: { id }, select: { name: true } }) : null;
+  return { title: org?.name ?? t.admin.title };
+}
 
 export default async function AdminOrganizationPage({ params }: PageProps<"/admin/organizations/[id]">) {
   const { id } = await params;

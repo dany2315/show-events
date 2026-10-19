@@ -7,7 +7,7 @@ import { ThemeGallery } from "@/components/landing/theme-gallery";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/dal";
 import { getI18n } from "@/i18n/server";
-import { PLAN_CATALOG } from "@/lib/constants";
+import { CONTACT_EMAIL, PLAN_CATALOG } from "@/lib/constants";
 import { formatMoney } from "@/lib/money";
 
 export default async function LandingPage() {
@@ -240,7 +240,7 @@ export default async function LandingPage() {
                   }
                   variant={plan.featured ? "default" : "outline"}
                 >
-                  <a href="mailto:contact@fundraising.live">{l.pricingCta}</a>
+                  <a href={`mailto:${CONTACT_EMAIL}`}>{l.pricingCta}</a>
                 </Button>
               </div>
             ))}

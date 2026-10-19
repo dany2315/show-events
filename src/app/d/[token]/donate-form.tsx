@@ -18,6 +18,7 @@ import {
 import { looksLikeEmail, normalizePhone } from "@/lib/donor";
 import { contrastText, type CategoryDef } from "@/lib/categories";
 import { initials } from "@/components/show/fit";
+import { Brand } from "@/components/brand";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/use-hydrated";
 import { TEST_DONATION_LIMIT } from "@/lib/lifecycle";
@@ -451,8 +452,9 @@ export function DonateForm({
             </div>
           </form>
         )}
-        <div className="mt-auto pt-10 text-center text-xs" style={{ color: "var(--show-muted)" }} dir="ltr">
-          Fundraising Live
+        <div className="mt-auto flex justify-center pt-10" style={{ color: "var(--show-muted)" }}>
+          {/* Signature discrète : logo une couleur, à la taille minimale du guide (120 px de large). */}
+          <Brand mono className="h-[30px]" />
         </div>
       </div>
     </div>

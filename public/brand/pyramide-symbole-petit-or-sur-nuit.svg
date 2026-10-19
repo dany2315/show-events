@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="t">
+  <title id="t">Pyramide</title>
+  <path fill="#f1cf7e" fill-rule="nonzero" d="M128 24 L159.75 79 L96.25 79 Z"/>
+  <path fill="#c9973f" fill-rule="nonzero" d="M82.23 105 L173.77 105 L200.32 151 L55.68 151 Z M40.67 177 L215.33 177 L246.51 231 L9.49 231 Z"/>
+</svg>

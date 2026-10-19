@@ -1,4 +1,10 @@
-export const APP_NAME = "Fundraising Live";
+export const APP_NAME = "Pyramide";
+/** Palette de la marque (kit « couleurs ») : nuit, or, or clair, ivoire. */
+export const BRAND_COLORS = { nuit: "#14111f", or: "#c9973f", orClair: "#f1cf7e", ivoire: "#f8f6f2" } as const;
+/** Adresse de contact affichée sur la vitrine et la page de connexion (domaine à confirmer avant la mise en production). */
+export const CONTACT_EMAIL = "contact@pyramide.app";
+/** Lien fictif encodé dans le QR code de l'aperçu (Studio, démonstrations) quand aucun lien réel n'existe. */
+export const PREVIEW_FORM_URL = "https://pyramide.app/d/apercu";
 
 export const CURRENCIES = ["EUR", "ILS", "USD"] as const;
 export type CurrencyCode = (typeof CURRENCIES)[number];

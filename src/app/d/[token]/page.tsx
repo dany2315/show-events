@@ -9,9 +9,10 @@ import { getI18n } from "@/i18n/server";
 import { isSafeWebUrl } from "@/lib/validation";
 import { DonateForm } from "./donate-form";
 
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.donate.title, robots: { index: false, follow: false } };
+}
 
 /** Formulaire mobile de promesse (lien unique / QR code). */
 export default async function DonatePage({ params }: PageProps<"/d/[token]">) {

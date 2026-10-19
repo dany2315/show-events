@@ -1,8 +1,14 @@
+import type { Metadata } from "next";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
 import { requireOrg } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getI18n } from "@/i18n/server";
 import { TeamClient } from "./team-client";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t.team.title };
+}
 
 export default async function TeamPage({ params }: PageProps<"/o/[slug]/team">) {
   const { slug } = await params;

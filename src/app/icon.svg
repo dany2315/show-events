@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Pyramide</title>
+  <style>.c{fill:#c9973f}.t{fill:#14111f}@media (prefers-color-scheme:dark){.c{fill:#f1cf7e}.t{fill:#c9973f}}</style>
+  <path class="c" d="M128 24 L160.33 80 L95.67 80 Z"/>
+  <path class="t" d="M81.81 104 L174.19 104 L201.9 152 L54.1 152 Z M40.24 176 L215.76 176 L248.09 232 L7.91 232 Z"/>
+</svg>

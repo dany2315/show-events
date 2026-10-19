@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, History, LayoutTemplate, MonitorPlay, RadioTower, Trash2 } from "lucide-react";
@@ -11,7 +12,7 @@ import { ConfirmAction } from "@/components/app/confirm-action";
 import { EventForm } from "@/components/app/event-form";
 import { GoalBar } from "@/components/app/progress-ring";
 import { deleteEventAction, updateEventAction } from "@/app/actions/events";
-import { requireOrg } from "@/lib/dal";
+import { getOrgContext, requireOrg } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getEventLinks } from "@/lib/event-access";
 import { getAdminDonations, getRegieState } from "@/lib/regie";
@@ -20,6 +21,13 @@ import { formatDate, formatShortDate, formatTime } from "@/lib/dates";
 import { getI18n } from "@/i18n/server";
 import { countLabel, fmt } from "@/i18n/format";
 import { cn } from "@/lib/utils";
+
+export async function generateMetadata({ params }: PageProps<"/o/[slug]/events/[eventId]">): Promise<Metadata> {
+  const { slug, eventId } = await params;
+  const [ctx, { t }] = await Promise.all([getOrgContext(slug), getI18n()]);
+  const event = ctx ? await prisma.event.findFirst({ where: { id: eventId, organizationId: ctx.org.id }, select: { name: true } }) : null;
+  return { title: event?.name ?? t.events.title };
+}
 
 export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/events/[eventId]">) {
   const { slug, eventId } = await params;

@@ -1,4 +1,4 @@
-# Fundraising Live
+# Pyramide
 
 Plateforme SaaS de levée de fonds en direct : les promesses de dons d'un gala s'affichent en temps réel sur grand écran (logo, total, objectif, donateurs, animations), saisies depuis une **Régie Live** ou par les participants via un **formulaire mobile / QR code**. Multi-associations, français et hébreu (RTL), EUR · ILS · USD.
 
@@ -122,6 +122,13 @@ Pendant le direct, la Régie peut passer une vidéo **en plein écran** sur l'é
 - **Fin de la vidéo** : événement `ended` pour un fichier, API postMessage pour YouTube et Vimeo ; l'écran le signale (`POST /api/live/screen/<jeton>/video`, sans effet si l'intermède a déjà changé), retour automatique à la scène pour tous les écrans et la Régie. Dailymotion n'expose pas cette information : arrêt manuel. Au retour, si des promesses sont arrivées pendant la vidéo, un récapitulatif s'affiche quelques secondes : « Pendant la vidéo : 3 nouvelles promesses · 1 250 € ».
 - **Son** : les navigateurs refusent la lecture avec le son tant que personne n'a cliqué sur la page. À l'ouverture, l'écran affiche discrètement « Activer le son » (masqué avec les autres commandes après quelques secondes d'inactivité) ; tout clic ou touche « arme » l'écran. Sinon la vidéo est lue **sans le son** et la Régie affiche « Son bloqué par le navigateur de l'écran » jusqu'au clic.
 - Aperçu de la Régie : la vidéo y est lue sans le son (visuel fixe « Vidéo en cours » sur téléphone / appareil peu puissant).
+
+### Marque Pyramide
+
+- **Logo** : `src/components/brand.tsx` (`Brand` horizontal, `BrandMark` symbole, coupe `small` sous 24 px) reprend les tracés du kit ; le nom est dessiné, il n'est jamais recomposé dans une police. `tone="light"` = or sur nuit (fonds sombres), `tone="dark"` = nuit + or (fonds clairs), `mono` = une couleur (`currentColor`, pied du formulaire mobile). Fichiers SVG / PNG de référence : `public/brand/`.
+- **Icônes et partage** (conventions de `src/app`) : `favicon.ico`, `icon.svg` (adaptatif clair / sombre), `apple-icon.png`, `manifest.ts` (`/manifest.webmanifest`, icônes `public/brand/icon-*.png`), `opengraph-image.png` et `twitter-image.png` (+ textes alternatifs).
+- **Couleurs** : nuit `#14111f`, or `#c9973f`, or clair `#f1cf7e`, ivoire `#f8f6f2` (`BRAND_COLORS` dans `src/lib/constants.ts`).
+- **Identifiants techniques conservés** : les cookies `fl_locale` (langue) et `fl_device` (limite de débit du formulaire mobile) et la classe d'animation `fl-rise` gardent le préfixe historique `fl_` ; les renommer déconnecterait les préférences et compteurs existants.
 
 ## Démarrage
 
