@@ -6,6 +6,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { PageHeader } from "@/components/app/page-header";
 import { requireUser } from "@/lib/dal";
 import { getI18n } from "@/i18n/server";
+import { isDemoEmail } from "@/lib/demo-mode";
 import { AccountForms } from "./account-forms";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,7 +30,12 @@ export default async function AccountPage() {
       </header>
       <main className="mx-auto max-w-3xl px-5 py-10">
         <PageHeader title={t.account.title} description={t.account.subtitle} />
-        <AccountForms name={user.name} email={user.email} roleLabel={user.platformRole === "SUPER_ADMIN" ? t.roles.SUPER_ADMIN : null} />
+        <AccountForms
+          name={user.name}
+          email={user.email}
+          roleLabel={user.platformRole === "SUPER_ADMIN" ? t.roles.SUPER_ADMIN : null}
+          demo={isDemoEmail(user.email)}
+        />
       </main>
     </div>
   );

@@ -82,6 +82,7 @@ export function VideoPanel({
   organizationId,
   blobEnabled,
   initialVideos,
+  allowUpload = true,
   video,
   onControlSent,
 }: {
@@ -89,6 +90,8 @@ export function VideoPanel({
   organizationId: string;
   blobEnabled: boolean;
   initialVideos: EventVideoItem[];
+  /** Import de fichiers vidéo (désactivé en démo : vidéos par lien uniquement). */
+  allowUpload?: boolean;
   video: LiveVideo | null;
   onControlSent: () => void;
 }) {
@@ -190,6 +193,7 @@ export function VideoPanel({
       <AddVideoForm
         organizationId={organizationId}
         blobEnabled={blobEnabled}
+        allowUpload={allowUpload}
         busy={busy}
         full={videos.length >= MAX_EVENT_VIDEOS}
         onAdd={(title, url) => mutate("add", () => addVideoAction(eventId, { title, url }), t.regie.videoAdded)}
@@ -400,12 +404,14 @@ function PreparedVideo({
 function AddVideoForm({
   organizationId,
   blobEnabled,
+  allowUpload,
   busy,
   full,
   onAdd,
 }: {
   organizationId: string;
   blobEnabled: boolean;
+  allowUpload: boolean;
   busy: Busy;
   full: boolean;
   onAdd: (title: string, url: string) => Promise<boolean>;
@@ -464,16 +470,23 @@ function AddVideoForm({
           </p>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={allowUpload ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
         <Button type="submit" variant="secondary" className="h-auto min-h-10 min-w-0 whitespace-normal rounded-xl py-2" disabled={!url.trim() || !!busy || full}>
           {busy === "add" && !uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
           {t.regie.videoAdd}
         </Button>
-        <Button type="button" variant="outline" className="h-auto min-h-10 min-w-0 whitespace-normal rounded-xl py-2" disabled={uploading || !!busy || full} onClick={() => fileRef.current?.click()}>
-          {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-          {uploading ? t.regie.videoUploading : t.regie.videoUpload}
-        </Button>
+        {allowUpload && (
+          <Button type="button" variant="outline" className="h-auto min-h-10 min-w-0 whitespace-normal rounded-xl py-2" disabled={uploading || !!busy || full} onClick={() => fileRef.current?.click()}>
+            {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+            {uploading ? t.regie.videoUploading : t.regie.videoUpload}
+          </Button>
+        )}
       </div>
+      {!allowUpload && (
+        <p className="text-xs text-muted-foreground" data-demo-video-note>
+          {t.demo.limitVideoUpload}
+        </p>
+      )}
       {full && <p className="text-xs text-muted-foreground">{fmt(t.regie.videoLimit, { max: MAX_EVENT_VIDEOS })}</p>}
       <input
         ref={fileRef}

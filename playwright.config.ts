@@ -5,6 +5,8 @@ loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ path: ".env", quiet: true });
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
+// E2E_DEMO=1 : le serveur de test démarre en mode démo (tests/e2e/demo.spec.ts) ; sinon le mode démo est forcé à off.
+const DEMO_ENV: Record<string, string> = process.env.E2E_DEMO === "1" ? { DEMO_MODE: "1", DEMO_SPACES_PER_HOUR: "4", CRON_SECRET: "e2e-cron-secret" } : { DEMO_MODE: "" };
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -30,6 +32,6 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000,
     // Les tests enchaînent de nombreuses connexions depuis la même IP : limite anti-force-brute relevée.
-    env: { BETTER_AUTH_URL: `http://localhost:${PORT}`, NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`, AUTH_SIGNIN_RATE_LIMIT: "500" },
+    env: { BETTER_AUTH_URL: `http://localhost:${PORT}`, NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`, AUTH_SIGNIN_RATE_LIMIT: "500", ...DEMO_ENV },
   },
 });

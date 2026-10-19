@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "prisma migrate deploy && npm run build",
-  "regions": ["cle1"]
+  "regions": ["cle1"],
+  "crons": [{ "path": "/api/cron/demo-cleanup", "schedule": "0 4 * * *" }]
 }

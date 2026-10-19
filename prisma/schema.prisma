@@ -142,6 +142,10 @@ model Organization {
   defaultCurrency Currency       @default(EUR)
   defaultLocale   Locale         @default(fr)
   status          OrgStatus      @default(ACTIVE)
+  /// Espace de démonstration (mode démo, DEMO_MODE=1) : supprimé automatiquement après 24 h.
+  isDemo          Boolean        @default(false)
+  /// Empreinte de l'adresse IP qui a créé l'espace de démo (limite de créations par heure).
+  demoIpHash      String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   memberships     Membership[]
@@ -151,6 +155,8 @@ model Organization {
   media           MediaAsset[]
   auditLogs       AuditLog[]
 
+  @@index([isDemo, createdAt])
+  @@index([demoIpHash, createdAt])
   @@map("organization")
 }
 

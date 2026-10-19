@@ -6,6 +6,7 @@ import { buildSnapshot } from "@/lib/live/server";
 import { getEventLinks } from "@/lib/event-access";
 import { normalizeShowConfig } from "@/lib/show/config";
 import { getI18n } from "@/i18n/server";
+import { isDemoMode } from "@/lib/demo-mode";
 import { StudioClient } from "./studio-client";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -36,7 +37,8 @@ export default async function StudioPage({ params }: PageProps<"/o/[slug]/events
       orgLogoUrl={ctx.org.logoUrl}
       displayUrl={links.displayUrl}
       templates={templates.map((tpl) => ({ id: tpl.id, name: tpl.name, config: normalizeShowConfig(tpl.config) }))}
-      blobEnabled={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
+      // Démo : pas d'envoi de fichiers lourds (images légères uniquement).
+      blobEnabled={!(isDemoMode() && ctx.org.isDemo) && Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
       backHref={ctx.can("org.view") ? `/o/${slug}/events/${event.id}` : `/o/${slug}`}
     />
   );

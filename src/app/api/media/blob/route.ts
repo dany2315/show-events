@@ -18,7 +18,9 @@ export async function POST(request: Request) {
       onBeforeGenerateToken: async (_pathname, clientPayload) => {
         const { organizationId } = JSON.parse(clientPayload ?? "{}") as { organizationId?: string };
         if (!organizationId) throw new Error("Association manquante");
-        await assertOrgAccess(organizationId, "event.studio");
+        const { org } = await assertOrgAccess(organizationId, "event.studio");
+        // Espace de démo : aucun envoi de fichier lourd.
+        if (org.isDemo) throw new Error("Indisponible en démo");
         return {
           allowedContentTypes: [...ALLOWED_IMAGE_TYPES.filter((t) => t !== "image/svg+xml"), ...ALLOWED_VIDEO_TYPES],
           maximumSizeInBytes: MAX_BLOB_UPLOAD_BYTES,

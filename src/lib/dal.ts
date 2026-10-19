@@ -49,6 +49,8 @@ export type OrgContext = {
     defaultCurrency: "EUR" | "ILS" | "USD";
     defaultLocale: "fr" | "he";
     country: string;
+    /** Espace de démonstration (mode démo) : limites spécifiques, bandeau « Démo ». */
+    isDemo: boolean;
   };
   memberRole: MemberRoleCode | null;
   actor: Actor;
@@ -70,6 +72,7 @@ export const getOrgContext = cache(async (slug: string): Promise<OrgContext | nu
       defaultCurrency: true,
       defaultLocale: true,
       country: true,
+      isDemo: true,
       memberships: { where: { userId: user.id }, select: { role: true } },
     },
   });
@@ -121,7 +124,7 @@ export async function assertEventAccess(eventId: string, capability: Capability)
       locale: true,
       status: true,
       organization: {
-        select: { slug: true, status: true, memberships: { where: { userId: user.id }, select: { role: true } } },
+        select: { slug: true, status: true, isDemo: true, memberships: { where: { userId: user.id }, select: { role: true } } },
       },
     },
   });
@@ -142,7 +145,7 @@ export async function assertOrgAccess(organizationId: string, capability: Capabi
   if (!user) throw new AccessError(401, "Non authentifié");
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { id: true, slug: true, status: true, memberships: { where: { userId: user.id }, select: { role: true } } },
+    select: { id: true, slug: true, status: true, isDemo: true, memberships: { where: { userId: user.id }, select: { role: true } } },
   });
   if (!org) throw new AccessError(404, "Association introuvable");
   const memberRole = org.memberships[0]?.role ?? null;

@@ -7,6 +7,7 @@ import { getEventLinks } from "@/lib/event-access";
 import { getRegieState } from "@/lib/regie";
 import { listEventVideos } from "@/lib/videos";
 import { getI18n } from "@/i18n/server";
+import { isDemoMode } from "@/lib/demo-mode";
 import { RegieClient } from "./regie-client";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,6 +23,8 @@ export default async function RegiePage({ params }: PageProps<"/o/[slug]/events/
   const links = await getEventLinks(event.id);
   const [snapshot, regie, videos] = await Promise.all([buildSnapshot(event.id, links.formUrl), getRegieState(event.id), listEventVideos(event.id)]);
   if (!snapshot) notFound();
+  // Espace de démo : simulation de promesses, vidéos par lien uniquement.
+  const demo = isDemoMode() && ctx.org.isDemo;
 
   return (
     <RegieClient
@@ -30,7 +33,8 @@ export default async function RegiePage({ params }: PageProps<"/o/[slug]/events/
       links={{ formUrl: links.formUrl, displayUrl: links.displayUrl }}
       isSuperAdmin={ctx.user.platformRole === "SUPER_ADMIN"}
       organizationId={ctx.org.id}
-      blobEnabled={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
+      blobEnabled={!demo && Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
+      demo={demo}
       initialVideos={videos}
       backHref={ctx.can("org.view") ? `/o/${slug}/events/${event.id}` : `/o/${slug}`}
     />

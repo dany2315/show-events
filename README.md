@@ -172,6 +172,42 @@ Les tests de bout en bout couvrent : régie (réel + fictif, total public), form
 - Tester le show sur l'écran réel (Full HD / 4K) et la régie sur le téléphone de l'opérateur ; utiliser les dons fictifs pour la répétition, puis les supprimer.
 - Un lien (QR code ou écran) compromis peut être régénéré depuis la fiche de l'événement.
 
+## Mode démo
+
+Pour présenter Pyramide à un client, sans identifiants à communiquer. Activé par `DEMO_MODE=1` ; sans cette variable, l'application se comporte normalement et les routes de démo (`/demo`, `/api/cron/demo-cleanup`) renvoient 404.
+
+- **Parcours** : la page d'accueil (et `/demo`, page de présentation en 4 étapes) affiche « Essayer la démo ». Un clic crée un **espace de démo isolé** pour le visiteur : une association (`demo-<id>`, `isDemo = true`), un administrateur de démonstration **connecté automatiquement** (compte `@demo.pyramide.invalid` sans mot de passe, session créée par l'API interne de Better Auth — point d'entrée `demoSignIn` réservé au serveur, jamais exposé en HTTP), un abonnement mensuel actif et le « Gala de démonstration » **déjà en direct** : arrière-plan « Velours », objectif, 3 catégories de donateurs, 15 promesses réalistes, 2 vidéos d'intermède (courts métrages libres de droits de la fondation Blender, CC BY). Visiteur en hébreu : gala en hébreu et en shekels.
+- **Pourquoi en direct** : le mode test est limité à 10 promesses ; l'abonnement mensuel de démo rend le passage en direct gratuit (aucun crédit consommé, voir `checkGoLive`).
+- **Console** : bandeau « Démo » (ouvrir l'écran, formulaire sur mon téléphone avec QR code, « Recommencer la démo » = espace neuf), guide en 4 étapes sur le tableau de bord, bouton « Simuler l'arrivée de promesses » dans la Régie (6 promesses fictives espacées, enregistrées côté serveur).
+- **Garde-fous** : 10 espaces par heure et par adresse IP (`DEMO_SPACES_PER_HOUR`, empreinte HMAC de l'IP) ; pas d'espace Super Admin (404) ; aucun compte créé depuis l'équipe, aucun e-mail envoyé ; images de 1 Mo maximum (20 par espace), vidéos par lien uniquement (pas d'envoi vers Vercel Blob) ; 5 événements par espace ; la Data Access Layer limite chaque visiteur à sa propre association. Les espaces de démo n'apparaissent pas dans les statistiques du Super Admin.
+- **Nettoyage** : les espaces de plus de 24 h sont supprimés (associations, événements, promesses, médias, comptes) par la tâche planifiée quotidienne `/api/cron/demo-cleanup` (`crons` de `vercel.json`, protégée par `CRON_SECRET`), et de façon opportuniste à chaque création d'espace. Seules les associations `isDemo` et les comptes du domaine de démo sont concernés. Sur un déploiement sans `DEMO_MODE` (production), la tâche planifiée reçoit un 404 : sans effet.
+- **Tests** : `E2E_DEMO=1 npx playwright test demo` démarre le serveur de test en mode démo (`tests/e2e/demo.spec.ts`) ; sans `E2E_DEMO`, la suite vérifie que les routes de démo renvoient 404.
+
+## Déployer la démo sur votre domaine
+
+La démo se déploie comme un **projet Vercel séparé** (même dépôt), avec sa **propre base Neon** (recommandé : les espaces de démo ne côtoient jamais les données des clients).
+
+1. **Base de données** : dans Neon, créer un nouveau projet (ou au minimum une branche dédiée), par exemple `pyramide-demo` ; récupérer l'URL de connexion *pooled* (`DATABASE_URL`).
+2. **Projet Vercel** : *Add New → Project*, importer le même dépôt, nommer le projet (ex. `pyramide-demo`). Le `buildCommand` de `vercel.json` applique les migrations (`prisma migrate deploy`) avant chaque build : la base est créée au premier déploiement.
+3. **Variables d'environnement** (Production) :
+
+   | Variable | Valeur |
+   | --- | --- |
+   | `DATABASE_URL` | URL Neon *pooled* de la base de démo |
+   | `BETTER_AUTH_SECRET` | secret long et aléatoire (`openssl rand -base64 48`), différent de la production |
+   | `BETTER_AUTH_URL` | `https://demo.pyramide.app` |
+   | `NEXT_PUBLIC_APP_URL` | `https://demo.pyramide.app` |
+   | `DEMO_MODE` | `1` |
+   | `CRON_SECRET` | secret aléatoire (Vercel l'envoie à la tâche de nettoyage) |
+   | `ABLY_API_KEY` | facultatif (sans clé : synchronisation HTTP ~1,5 s) |
+   | `DEMO_SPACES_PER_HOUR` | facultatif (défaut 10) |
+
+   Ne pas renseigner `BLOB_READ_WRITE_TOKEN` (inutile en démo). Aucun seed n'est nécessaire.
+4. **Domaine** : *Settings → Domains → Add* `demo.pyramide.app`. Chez le fournisseur DNS de `pyramide.app`, créer l'enregistrement **CNAME** `demo` → `cname.vercel-dns.com`. Vercel émet le certificat HTTPS automatiquement une fois le DNS propagé.
+5. **Redéployer** (pour prendre en compte les variables), puis vérifier : `https://demo.pyramide.app/api/health`, la page d'accueil (« Essayer la démo »), `/demo`, et dans *Settings → Cron Jobs* la tâche `/api/cron/demo-cleanup` (quotidienne, 4 h UTC ; les tâches planifiées ne s'exécutent que sur le déploiement de production).
+
+Variante sans projet séparé : un environnement Vercel personnalisé (*Settings → Environments*) avec les mêmes variables et le domaine associé ; la base de démo doit rester distincte.
+
 ## Sécurité
 - Aucune inscription publique : comptes créés par le Super Admin ou l'administrateur de l'association ; mots de passe provisoires affichés une seule fois.
 - Connexion protégée contre la force brute : 30 tentatives/min par IP (`AUTH_SIGNIN_RATE_LIMIT`). Ne concerne que les comptes (équipe) : les donateurs ne se connectent jamais.

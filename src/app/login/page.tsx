@@ -8,6 +8,8 @@ import { HeroDemo } from "@/components/landing/hero-demo";
 import { getCurrentUser } from "@/lib/dal";
 import { getI18n } from "@/i18n/server";
 import { CONTACT_EMAIL } from "@/lib/constants";
+import { DemoStartButton } from "@/components/demo/demo-start-button";
+import { isDemoMode } from "@/lib/demo-mode";
 import { LoginForm } from "./login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -31,6 +33,12 @@ export default async function LoginPage() {
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
           <h1 className="font-display text-4xl leading-tight">{t.auth.loginTitle}</h1>
           <p className="mt-3 text-muted-foreground">{t.auth.loginSubtitle}</p>
+          {isDemoMode() && (
+            <div className="mt-8 rounded-3xl border bg-card p-5" data-login-demo>
+              <p className="text-sm text-muted-foreground">{t.demo.tryDemoHint}</p>
+              <DemoStartButton size="sm" className="mt-3" />
+            </div>
+          )}
           <LoginForm />
           <p className="mt-8 text-sm text-muted-foreground">
             {t.auth.noAccount}{" "}

@@ -1,9 +1,14 @@
 import "server-only";
-import { betterAuth } from "better-auth";
+import { randomBytes } from "node:crypto";
+import { betterAuth, type BetterAuthPlugin } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError, createAuthEndpoint } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 import { nextCookies } from "better-auth/next-js";
+import { z } from "zod";
 import { prisma } from "./prisma";
 import { APP_NAME } from "./constants";
+import { DEMO_EMAIL_DOMAIN, DEMO_TTL_MS, isDemoMode } from "./demo-mode";
 
 function baseURL() {
   // Preview Vercel : l'URL de la branche prime (BETTER_AUTH_URL vise souvent localhost ou la production).
@@ -18,6 +23,39 @@ function baseURL() {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
+}
+
+/**
+ * Connexion des visiteurs du mode démo, sans identifiants : crée un compte de démonstration
+ * (domaine réservé, aucun mot de passe) puis sa session, et pose le cookie de session
+ * (transmis à Next.js par `nextCookies`). Point d'entrée réservé au serveur : il n'est jamais
+ * exposé en HTTP (`serverOnly`) et refuse tout appel hors mode démo.
+ */
+function demoSession() {
+  return {
+    id: "demo-session",
+    endpoints: {
+      demoSignIn: createAuthEndpoint.serverOnly(
+        { method: "POST", body: z.object({ name: z.string().trim().min(1).max(80) }) },
+        async (ctx) => {
+          if (!isDemoMode()) throw new APIError("NOT_FOUND");
+          const user = await ctx.context.internalAdapter.createUser(
+            {
+              name: ctx.body.name,
+              email: `visiteur-${randomBytes(9).toString("hex")}@${DEMO_EMAIL_DOMAIN}`,
+              emailVerified: true,
+              role: "USER",
+            },
+            { method: "admin" },
+          );
+          const session = await ctx.context.internalAdapter.createSession(user.id);
+          // Le cookie expire avec l'espace de démo (supprimé après 24 h).
+          await setSessionCookie(ctx, { session, user }, false, { maxAge: Math.round(DEMO_TTL_MS / 1000) });
+          return ctx.json({ userId: user.id });
+        },
+      ),
+    },
+  } satisfies BetterAuthPlugin;
 }
 
 export const auth = betterAuth({
@@ -61,7 +99,8 @@ export const auth = betterAuth({
       "/change-password": { window: 60, max: 5 },
     },
   },
-  plugins: [nextCookies()],
+  // nextCookies doit rester le dernier plugin.
+  plugins: [demoSession(), nextCookies()],
 });
 
 export type AuthSession = typeof auth.$Infer.Session;

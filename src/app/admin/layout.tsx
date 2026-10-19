@@ -3,10 +3,14 @@ import { ShieldCheck, UserRound } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { SignOutButton } from "@/components/app/sign-out-button";
+import { notFound } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/dal";
+import { isDemoMode } from "@/lib/demo-mode";
 import { getI18n } from "@/i18n/server";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
+  // Déploiement de démonstration : pas d'espace Super Admin.
+  if (isDemoMode()) notFound();
   const user = await requireSuperAdmin();
   const { t } = await getI18n();
   return (

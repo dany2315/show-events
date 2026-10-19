@@ -26,7 +26,7 @@ export function TeamClient({ organizationId, currentUserId, members }: { organiz
   const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
   const [, startTransition] = useTransition();
 
-  const errorText = (code: string) => (code === "LAST_ADMIN" ? t.team.lastAdmin : code === "ACCESS" ? t.common.notAllowed : t.common.errorGeneric);
+  const errorText = (code: string) => (code === "LAST_ADMIN" ? t.team.lastAdmin : code === "ACCESS" ? t.common.notAllowed : code === "DEMO" ? t.demo.limitTeam : t.common.errorGeneric);
 
   return (
     <>

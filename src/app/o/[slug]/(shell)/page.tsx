@@ -16,6 +16,9 @@ import { countLabel, fmt } from "@/i18n/format";
 import { isSubscriptionPlan } from "@/lib/billing";
 import type { Dictionary } from "@/i18n/dictionaries";
 import type { AppLocale } from "@/lib/constants";
+import { DemoGuide } from "@/components/demo/demo-guide";
+import { getDemoEventLinks } from "@/lib/demo";
+import { isDemoMode } from "@/lib/demo-mode";
 
 export async function generateMetadata({ params }: PageProps<"/o/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -39,6 +42,7 @@ export default async function OrgDashboard({ params }: PageProps<"/o/[slug]">) {
   ]);
   const others = events.filter((e) => e.id !== featured?.event.id).slice(0, 5);
   const base = `/o/${slug}`;
+  const demo = isDemoMode() && ctx.org.isDemo ? await getDemoEventLinks(ctx.org.id) : null;
 
   return (
     <PageContainer>
@@ -54,6 +58,15 @@ export default async function OrgDashboard({ params }: PageProps<"/o/[slug]">) {
           </Button>
         }
       />
+
+      {demo && (
+        <DemoGuide
+          formUrl={demo.formUrl}
+          displayUrl={demo.displayUrl}
+          regieHref={`${base}/events/${demo.eventId}/regie`}
+          studioHref={`${base}/events/${demo.eventId}/studio`}
+        />
+      )}
 
       <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         {featured && links ? (
@@ -86,7 +99,7 @@ export default async function OrgDashboard({ params }: PageProps<"/o/[slug]">) {
               </span>
               <h3 className="font-semibold">{t.dashboard.teamCard}</h3>
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">{fmt(t.dashboard.teamCardText, { count: memberCount })}</p>
+            <p className="mt-3 text-sm text-muted-foreground">{fmt(t.dashboard.teamCardText, { members: countLabel(t.counts, "members", memberCount) })}</p>
             <Button asChild variant="outline" className="mt-4 w-full rounded-full">
               <Link href={`${base}/team`}>{t.dashboard.manageTeam}</Link>
             </Button>

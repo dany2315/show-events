@@ -59,6 +59,7 @@ import { acceptsDonations, TEST_DONATION_LIMIT, testDonationsRemaining } from "@
 import type { EventStatusCode } from "@/lib/constants";
 import { EventStatusControl } from "@/components/app/event-status-control";
 import type { EventVideoItem } from "@/lib/videos";
+import { DemoSimulator } from "@/components/demo/demo-simulator";
 import { VideoPanel } from "./video-panel";
 
 function newKey() {
@@ -74,6 +75,7 @@ export function RegieClient({
   organizationId,
   blobEnabled,
   initialVideos,
+  demo = false,
 }: {
   isSuperAdmin: boolean;
   snapshot: LiveSnapshot;
@@ -83,6 +85,8 @@ export function RegieClient({
   organizationId: string;
   blobEnabled: boolean;
   initialVideos: EventVideoItem[];
+  /** Espace de démo : simulation de promesses, vidéos par lien uniquement. */
+  demo?: boolean;
 }) {
   const { t, locale } = useI18n();
   const eventId = snapshot.event.id;
@@ -197,7 +201,8 @@ export function RegieClient({
           <AddDonationForm eventId={eventId} currency={currency} categories={categories} onAdded={refreshRegie} open={acceptsDonations(state.event.status)} />
         </section>
 
-        <section className="[grid-area:controls]">
+        <section className="grid content-start gap-5 [grid-area:controls]">
+          {demo && <DemoSimulator eventId={eventId} disabled={!acceptsDonations(state.event.status)} />}
           <Controls eventId={eventId} paused={state.control.paused} overlay={state.control.overlay} />
         </section>
         {/* Aperçu puis intermède vidéo : l'état « vidéo en cours » reste sous les yeux de la régie. */}
@@ -240,6 +245,7 @@ export function RegieClient({
             organizationId={organizationId}
             blobEnabled={blobEnabled}
             initialVideos={initialVideos}
+            allowUpload={!demo}
             video={liveVideo}
             onControlSent={() => void resync().catch(() => undefined)}
           />

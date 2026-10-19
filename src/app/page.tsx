@@ -5,6 +5,8 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { HeroDemo } from "@/components/landing/hero-demo";
 import { ThemeGallery } from "@/components/landing/theme-gallery";
 import { Button } from "@/components/ui/button";
+import { DemoStartButton } from "@/components/demo/demo-start-button";
+import { isDemoMode } from "@/lib/demo-mode";
 import { getCurrentUser } from "@/lib/dal";
 import { getI18n } from "@/i18n/server";
 import { CONTACT_EMAIL, PLAN_CATALOG } from "@/lib/constants";
@@ -32,6 +34,8 @@ export default async function LandingPage() {
     [l.faq4Q, l.faq4A],
   ];
   const ctaHref = user ? "/app" : "/login";
+  // Mode démo : chaque appel à l'action ouvre un espace de démonstration (sans identifiants).
+  const demo = isDemoMode();
 
   return (
     <div className="min-h-screen bg-ink text-white">
@@ -48,9 +52,13 @@ export default async function LandingPage() {
           </nav>
           <div className="flex items-center gap-2">
             <LocaleSwitcher tone="dark" className="hidden sm:inline-flex" />
-            <Button asChild size="lg" className="rounded-full bg-white px-4 text-ink hover:bg-white/90">
-              <Link href={ctaHref}>{user ? l.navDashboard : l.navLogin}</Link>
-            </Button>
+            {demo ? (
+              <DemoStartButton size="sm" />
+            ) : (
+              <Button asChild size="lg" className="rounded-full bg-white px-4 text-ink hover:bg-white/90">
+                <Link href={ctaHref}>{user ? l.navDashboard : l.navLogin}</Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -77,17 +85,21 @@ export default async function LandingPage() {
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">{l.heroText}</p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" className="h-12 rounded-full bg-gold px-6 text-base font-semibold text-ink hover:bg-[#e3b45c]">
-                <Link href={ctaHref}>
-                  {l.heroCta}
-                  <ArrowRight className="size-4 rtl:rotate-180" />
-                </Link>
-              </Button>
+              {demo ? (
+                <DemoStartButton />
+              ) : (
+                <Button asChild size="lg" className="h-12 rounded-full bg-gold px-6 text-base font-semibold text-ink hover:bg-[#e3b45c]">
+                  <Link href={ctaHref}>
+                    {l.heroCta}
+                    <ArrowRight className="size-4 rtl:rotate-180" />
+                  </Link>
+                </Button>
+              )}
               <Button asChild size="lg" variant="ghost" className="h-12 rounded-full px-6 text-base text-white hover:bg-white/10 hover:text-white">
                 <a href="#styles">{l.heroCta2}</a>
               </Button>
             </div>
-            <p className="mt-6 text-sm text-white/45">{l.heroNote}</p>
+            <p className="mt-6 text-sm text-white/45">{demo ? t.demo.tryDemoHint : l.heroNote}</p>
           </div>
 
           <div className="relative fl-rise [animation-delay:150ms]">
@@ -273,12 +285,18 @@ export default async function LandingPage() {
         <div className="relative mx-auto max-w-4xl px-5 py-24 text-center sm:px-8">
           <h2 className="font-display text-4xl leading-tight sm:text-6xl">{l.finalTitle}</h2>
           <p className="mt-4 text-lg text-white/65">{l.finalText}</p>
-          <Button asChild size="lg" className="mt-9 h-12 rounded-full bg-gold px-7 text-base font-semibold text-ink hover:bg-[#e3b45c]">
-            <Link href={ctaHref}>
-              {l.heroCta}
-              <ArrowRight className="size-4 rtl:rotate-180" />
-            </Link>
-          </Button>
+          {demo ? (
+            <div className="mt-9 flex justify-center">
+              <DemoStartButton />
+            </div>
+          ) : (
+            <Button asChild size="lg" className="mt-9 h-12 rounded-full bg-gold px-7 text-base font-semibold text-ink hover:bg-[#e3b45c]">
+              <Link href={ctaHref}>
+                {l.heroCta}
+                <ArrowRight className="size-4 rtl:rotate-180" />
+              </Link>
+            </Button>
+          )}
         </div>
         <footer className="relative border-t border-white/[0.06]">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 py-8 text-sm text-white/45 sm:flex-row sm:px-8">

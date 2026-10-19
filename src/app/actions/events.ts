@@ -14,6 +14,7 @@ import { changeEventStatus, clearTestDonations, getGoLiveInfo, LifecycleError } 
 import { audit } from "@/lib/audit";
 import { eventInputSchema } from "@/lib/validation";
 import { THEME_IDS } from "@/lib/show/config";
+import { DEMO_LIMITS } from "@/lib/demo-mode";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string; field?: string };
 
@@ -38,6 +39,8 @@ export async function createEventAction(organizationId: string, _prev: ActionRes
   let target: string;
   try {
     const { user, org } = await assertOrgAccess(organizationId, "event.manage");
+    // Espace de démo : nombre d'événements plafonné.
+    if (org.isDemo && (await prisma.event.count({ where: { organizationId } })) >= DEMO_LIMITS.events) throw new EventCreationError("DEMO_LIMIT");
     const input = eventInputSchema.parse({
       name: formData.get("name"),
       date: formData.get("date"),

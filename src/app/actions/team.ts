@@ -25,6 +25,8 @@ export async function addMemberAction(
 ): Promise<Result<{ email: string; tempPassword: string | null }>> {
   try {
     const { user, org } = await assertOrgAccess(organizationId, "org.team");
+    // Espace de démo : aucun compte créé (ni identifiants, ni e-mail).
+    if (org.isDemo) return { ok: false, error: "DEMO" };
     const data = memberInputSchema.parse(input);
     const tempPassword = generateTempPassword();
     const { user: member, created } = await createUserWithPassword({ name: data.name, email: data.email, password: tempPassword });
@@ -98,6 +100,7 @@ export async function resetMemberPasswordAction(membershipId: string): Promise<R
   try {
     const membership = await loadMembership(membershipId);
     const { user, org } = await assertOrgAccess(membership.organizationId, "org.team");
+    if (org.isDemo) return { ok: false, error: "DEMO" };
     const otherOrgs = await prisma.membership.count({ where: { userId: membership.userId, organizationId: { not: membership.organizationId } } });
     if (user.platformRole !== "SUPER_ADMIN" && (membership.user.role === "SUPER_ADMIN" || otherOrgs > 0)) {
       return { ok: false, error: "ACCESS" };

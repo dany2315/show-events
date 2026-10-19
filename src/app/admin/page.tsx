@@ -4,6 +4,7 @@ import { Building2, CalendarDays, ChevronRight, HandCoins, Plus, Users } from "l
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageContainer, PageHeader } from "@/components/app/page-header";
 import { prisma } from "@/lib/prisma";
+import { DEMO_EMAIL_DOMAIN } from "@/lib/demo-mode";
 import { requireSuperAdmin } from "@/lib/dal";
 import { isSubscriptionPlan } from "@/lib/billing";
 import { getI18n } from "@/i18n/server";
@@ -24,7 +25,9 @@ export default async function AdminHome() {
   const { t } = await getI18n();
   const since = daysAgo(30);
   const [orgs, activeOrgs, events, liveEvents, donations30, users] = await Promise.all([
+    // Les espaces de démonstration (mode démo) n'apparaissent pas dans l'administration.
     prisma.organization.findMany({
+      where: { isDemo: false },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -38,11 +41,11 @@ export default async function AdminHome() {
         events: { where: { status: "LIVE" }, select: { id: true } },
       },
     }),
-    prisma.organization.count({ where: { status: "ACTIVE" } }),
-    prisma.event.count(),
-    prisma.event.count({ where: { status: "LIVE" } }),
-    prisma.donation.count({ where: { createdAt: { gte: since }, deletedAt: null } }),
-    prisma.user.count(),
+    prisma.organization.count({ where: { status: "ACTIVE", isDemo: false } }),
+    prisma.event.count({ where: { organization: { isDemo: false } } }),
+    prisma.event.count({ where: { status: "LIVE", organization: { isDemo: false } } }),
+    prisma.donation.count({ where: { createdAt: { gte: since }, deletedAt: null, event: { organization: { isDemo: false } } } }),
+    prisma.user.count({ where: { NOT: { email: { endsWith: `@${DEMO_EMAIL_DOMAIN}` } } } }),
   ]);
 
   const stats = [
