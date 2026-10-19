@@ -6,7 +6,7 @@ import type { ThemeId } from "./config";
  * Chaque décor est une valeur CSS `background` à plusieurs couches (la première est au-dessus) :
  * dégradés CSS et dessins SVG inline en data-URI, sans aucun fichier ni ressource externe.
  * Les dessins sont composés aux dimensions exactes de la surface du show (1920 × 1080 en 16:9,
- * 1080 × 1920 en portrait, 3840 × 1080 en 32:9…) : aucune déformation ni recadrage, chaque
+ * 1440 × 1080 en 4:3, 3840 × 1080 en 32:9…) : aucune déformation ni recadrage, chaque
  * ornement reste ancré à son bord ou à son coin (rideaux sur les côtés, remparts et collines
  * en bas, cadres au contour, frises répétées sur toute la largeur). Ils ne sont jamais animés :
  * le navigateur les peint une seule fois. Les zones du total, du titre et des dons restent
@@ -106,7 +106,7 @@ ${starField(12, Math.round(70 * area(W, H)), W, { yMax: H, rMin: 0.8, rMax: 2.2,
 
 function veloursScene(W: number, H: number) {
   // Les rideaux gardent leur largeur sur les écrans larges et s'affinent sur les écrans étroits
-  // (portrait : le centre reste dégagé) ; ils couvrent toujours toute la hauteur.
+  // (4:3 : le centre reste dégagé) ; ils couvrent toujours toute la hauteur.
   const sx = Math.min(1, W / REF_W);
   const sy = H / REF_H;
   const cx = W / 2;
@@ -338,7 +338,7 @@ function emeraudeScene(W: number, H: number) {
 /* ─── Aurore boréale ───────────────────────────────────────────────────── */
 
 function auroreScene(W: number, H: number) {
-  // Sur un écran portrait, le voile descend un peu plus bas pour habiller le haut de l'écran.
+  // Sur un écran plus haut que le 16:9 (16:10), le voile descend un peu plus bas.
   const sy = Math.min(1.6, Math.max(1, H / REF_H));
   let curtain = "";
   const strips = Math.ceil(W / 16);
@@ -420,9 +420,8 @@ function feuxScene(W: number, H: number) {
   const glows = ["#ffd166", "#ff7eb6", "#7fe3ff"]
     .map((c) => `<radialGradient id='g${c.slice(1)}'><stop offset='0' stop-color='${c}' stop-opacity='0.35'/><stop offset='1' stop-color='${c}' stop-opacity='0'/></radialGradient>`)
     .join("");
-  // Bouquets supplémentaires : haut d'un écran portrait, centre des écrans très larges.
+  // Bouquets supplémentaires au centre des écrans très larges.
   let extra = "";
-  if (H > W) extra += `${burst(W * 0.78, H * 0.4, 170, "#ffd166", 0.24)}\n${burst(W * 0.18, H * 0.27, 120, "#7fe3ff", 0.2)}`;
   if (W >= 2400) extra += `${burst(W * 0.44, H - 90, 150, "#7fe3ff", 0.45)}`;
   if (W >= 3600) extra += `${burst(W * 0.2, 70, 110, "#ff7eb6", 0.24)}`;
   const art = `<defs>${glows}</defs>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import type { LiveEventsResponse, LiveMessage, LiveSnapshot } from "@/lib/live/types";
+import type { LiveEventInfo, LiveEventsResponse, LiveMessage, LiveSnapshot } from "@/lib/live/types";
+import { applyCategoryDelta } from "@/lib/categories";
 import type { ShowEffect } from "./stage";
 
 export type LiveSource = { kind: "screen"; token: string } | { kind: "event"; eventId: string };
@@ -14,6 +15,12 @@ type Action =
   | { type: "messages"; messages: LiveMessage[]; withEffects: boolean };
 
 const MAX_DONATIONS = 30;
+
+function withCategoryDelta(event: LiveEventInfo, categoryId: string | null | undefined, amount: number, count: number): LiveEventInfo {
+  if (!event.categories || !categoryId) return event;
+  const categories = applyCategoryDelta(event.categories, categoryId, amount, count);
+  return categories === event.categories ? event : { ...event, categories };
+}
 
 function reducer(state: State, action: Action): State {
   if (action.type === "snapshot") {
@@ -31,6 +38,7 @@ function reducer(state: State, action: Action): State {
           seq: msg.seq,
           total: msg.total,
           count: msg.count,
+          event: exists ? next.event : withCategoryDelta(next.event, msg.donation.categoryId, msg.donation.amount, 1),
           donations: exists ? next.donations : [msg.donation, ...next.donations].slice(0, MAX_DONATIONS),
           ...(action.withEffects && !exists
             ? { effect: { id: effectSeq, kind: "donation" as const, donation: msg.donation }, effectSeq }
@@ -38,21 +46,30 @@ function reducer(state: State, action: Action): State {
         };
         break;
       }
-      case "donation.updated":
+      case "donation.updated": {
+        // Totaux par catégorie : on retire l'ancienne part de la promesse, puis on ajoute la nouvelle.
+        let event = next.event;
+        if (msg.previous) {
+          event = withCategoryDelta(event, msg.previous.categoryId, -msg.previous.amount, -1);
+          event = withCategoryDelta(event, msg.donation.categoryId, msg.donation.amount, 1);
+        }
         next = {
           ...next,
           seq: msg.seq,
           total: msg.total,
           count: msg.count,
+          event,
           donations: next.donations.map((d) => (d.id === msg.donation.id ? msg.donation : d)),
         };
         break;
+      }
       case "donation.deleted":
         next = {
           ...next,
           seq: msg.seq,
           total: msg.total,
           count: msg.count,
+          event: msg.removed ? withCategoryDelta(next.event, msg.removed.categoryId, -msg.removed.amount, -1) : next.event,
           donations: next.donations.filter((d) => d.id !== msg.donationId),
         };
         break;
@@ -218,3 +235,6 @@ export function useLiveEvent(source: LiveSource, initial: LiveSnapshot) {
 
   return { state, status, resync };
 }
+
+/** Exporté pour les tests unitaires. */
+export { reducer as liveReducer };

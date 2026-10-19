@@ -31,6 +31,7 @@ async function deviceId() {
  * La promesse est réelle et apparaît immédiatement sur le show.
  * Protections : champ piège, limite par téléphone (5/min) et plafond large par IP
  * (tout le Wi-Fi d'une salle partage souvent une seule IP), idempotence.
+ * Coordonnées (téléphone, e-mail) : enregistrées pour l'organisateur, jamais renvoyées ni diffusées.
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/d/[token]">) {
   try {
@@ -41,12 +42,17 @@ export async function POST(request: Request, ctx: RouteContext<"/api/d/[token]">
     const body = publicDonationSchema.parse(await request.json());
     if (body.website) {
       // Robot : on répond comme si tout allait bien, sans rien enregistrer.
-      return json({ ok: true, donation: { donorName: body.donorName, amount: body.amount } });
+      return json({ ok: true, donation: { donorName: `${body.firstName} ${body.lastName}`, amount: body.amount } });
     }
 
     const result = await recordDonation({
       eventId,
-      donorName: body.donorName,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      phone: body.phone,
+      email: body.email ?? null,
+      anonymous: body.anonymous,
+      categoryId: body.categoryId ?? null,
       amount: body.amount,
       isFictitious: false,
       source: "MOBILE",

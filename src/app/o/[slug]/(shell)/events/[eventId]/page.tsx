@@ -14,7 +14,7 @@ import { deleteEventAction, updateEventAction } from "@/app/actions/events";
 import { requireOrg } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getEventLinks } from "@/lib/event-access";
-import { getRegieState } from "@/lib/regie";
+import { getAdminDonations, getRegieState } from "@/lib/regie";
 import { formatMoney, formatPercent, goalProgress } from "@/lib/money";
 import { formatDate, formatShortDate, formatTime } from "@/lib/dates";
 import { getI18n } from "@/i18n/server";
@@ -27,14 +27,26 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
   const { t, locale } = await getI18n();
   const event = await prisma.event.findFirst({
     where: { id: eventId, organizationId: ctx.org.id },
-    select: { id: true, name: true, date: true, goalAmount: true, currency: true, locale: true, status: true },
+    select: {
+      id: true,
+      name: true,
+      date: true,
+      goalAmount: true,
+      currency: true,
+      locale: true,
+      status: true,
+      campaignUrl: true,
+      categories: { orderBy: { position: "asc" }, select: { id: true, name: true, color: true } },
+    },
   });
   if (!event) notFound();
 
   const donationIds = (await prisma.donation.findMany({ where: { eventId: event.id }, select: { id: true } })).map((d) => d.id);
-  const [links, regie, eventHistory] = await Promise.all([
+  const [links, regie, donations, eventHistory] = await Promise.all([
     getEventLinks(event.id),
-    getRegieState(event.id, 500),
+    getRegieState(event.id, 0),
+    // Fiche réservée aux administrateurs (org.view) : coordonnées des donateurs visibles ici seulement.
+    getAdminDonations(event.id, 500),
     prisma.auditLog.findMany({
       where: { organizationId: ctx.org.id, entityType: "Donation", entityId: { in: donationIds } },
       orderBy: { createdAt: "desc" },
@@ -154,7 +166,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
       <section className="mt-10">
         <h2 className="text-lg font-semibold">{t.eventDetail.donationsList}</h2>
         <div className="mt-4">
-          <DonationsTable donations={regie.donations} currency={event.currency} exportUrl={canManage ? `/api/events/${event.id}/export` : undefined} />
+          <DonationsTable donations={donations} categories={event.categories} currency={event.currency} exportUrl={canManage ? `/api/events/${event.id}/export` : undefined} />
         </div>
       </section>
 
@@ -165,6 +177,7 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
             <h2 className="text-lg font-semibold">{t.eventDetail.editDetails}</h2>
             <div className="mt-5">
               <EventForm
+                key={event.categories.map((c) => c.id).join("|")}
                 mode="edit"
                 eventId={event.id}
                 action={updateEventAction}
@@ -174,6 +187,8 @@ export default async function EventDetailPage({ params }: PageProps<"/o/[slug]/e
                   goalAmount: event.goalAmount,
                   currency: event.currency,
                   locale: event.locale,
+                  categories: event.categories,
+                  campaignUrl: event.campaignUrl,
                 }}
                 currencyLocked={regie.count > 0}
                 submitLabel={t.common.save}

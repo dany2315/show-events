@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 /**
  * Écran géant : lien de diffusion public, non devinable, à ouvrir en plein écran.
- * Le format d'écran (16:9, 16:10, 4:3, 21:9, 32:9, 9:16) est détecté d'après la taille de la
- * fenêtre ; `?format=9:16` (ou `portrait`, `21:9`, `ultrawide`…) l'impose.
+ * Le format d'écran (16:9, 16:10, 4:3, 21:9, 32:9) est détecté d'après la taille de la
+ * fenêtre ; `?format=21:9` (ou `4:3`, `32x9`, `ultrawide`…) l'impose.
  */
 export default async function ScreenPage({ params, searchParams }: PageProps<"/screen/[token]">) {
   const { token } = await params;

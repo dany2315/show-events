@@ -13,23 +13,28 @@ import {
   stageSize,
   withFormatBlocks,
   withoutFormatBlocks,
+  type BlockType,
   type ShowBlock,
   type ShowConfig,
   THEME_IDS,
 } from "@/lib/show/config";
 import { ALT_FORMAT_IDS, closestFormat, FORMAT_IDS, FORMAT_LIST, getFormat, parseFormatParam, SCREEN_FORMATS } from "@/lib/show/formats";
 import { applyPreset, autoLayout, deriveFormatBlocks, findOverlaps, fixOverlaps, formatBlocks, LAYOUT_PRESETS } from "@/lib/show/smart-layout";
+import { hideCategoriesBlock, revealCategoriesBlock } from "@/lib/show/categories-layout";
 import { backgroundScene } from "@/lib/show/themes";
 import { ShowStage } from "@/components/show/stage";
 import { demoDonations, demoEvent } from "@/lib/show/demo";
 import { EMPTY_CONTROL } from "@/lib/live/types";
 
-const allVisible = (message = "Merci pour votre générosité") => {
+/** Tous les blocs affichés ; le bloc « Catégories » seulement si l'événement a des catégories. */
+const allVisible = ({ message = "Merci pour votre générosité", categories = false } = {}) => {
   const c = defaultShowConfig();
   c.texts.message = message;
-  c.blocks = c.blocks.map((b) => ({ ...b, visible: true }));
+  c.blocks = c.blocks.map((b) => ({ ...b, visible: b.type === "categories" ? categories : true }));
   return c;
 };
+
+const by = (blocks: ShowBlock[], type: BlockType) => blocks.find((b) => b.type === type)!;
 
 function expectInBounds(blocks: ShowBlock[]) {
   for (const b of blocks) {
@@ -41,15 +46,15 @@ function expectInBounds(blocks: ShowBlock[]) {
 }
 
 describe("formats d'écran", () => {
-  it("définit les 6 formats avec leurs surfaces", () => {
-    expect([...FORMAT_IDS]).toEqual(["16:9", "16:10", "4:3", "21:9", "32:9", "9:16"]);
+  it("définit les 5 formats couchés avec leurs surfaces (aucun format portrait)", () => {
+    expect([...FORMAT_IDS]).toEqual(["16:9", "16:10", "4:3", "21:9", "32:9"]);
     expect(stageSize("16:9")).toEqual({ width: 1920, height: 1080 });
     expect(stageSize("16:10")).toEqual({ width: 1920, height: 1200 });
     expect(stageSize("4:3")).toEqual({ width: 1440, height: 1080 });
     expect(stageSize("21:9")).toEqual({ width: 2520, height: 1080 });
     expect(stageSize("32:9")).toEqual({ width: 3840, height: 1080 });
-    expect(stageSize("9:16")).toEqual({ width: 1080, height: 1920 });
     for (const f of FORMAT_LIST) {
+      expect(f.width).toBeGreaterThan(f.height);
       expect(f.label.fr.startsWith(f.id)).toBe(true);
       expect(f.label.he.startsWith(f.id)).toBe(true);
     }
@@ -68,23 +73,23 @@ describe("formats d'écran", () => {
     expect(closestFormat(2560, 1080)).toBe("21:9");
     expect(closestFormat(5120, 1440)).toBe("32:9");
     expect(closestFormat(7680, 1080)).toBe("32:9");
-    expect(closestFormat(1080, 1920)).toBe("9:16");
-    expect(closestFormat(390, 844)).toBe("9:16");
-    // Tablette en portrait : 9:16 est plus proche que 4:3 couché.
-    expect(closestFormat(768, 1024)).toBe("9:16");
+    // Fenêtre en portrait : le format couché le plus proche (4:3), avec des bandes noires.
+    expect(closestFormat(1080, 1920)).toBe("4:3");
+    expect(closestFormat(390, 844)).toBe("4:3");
+    expect(closestFormat(768, 1024)).toBe("4:3");
     expect(closestFormat(0, 0)).toBe("16:9");
     expect(closestFormat(Number.NaN, 1080)).toBe("16:9");
   });
 
-  it("lit le paramètre d'URL ?format=", () => {
-    expect(parseFormatParam("9:16")).toBe("9:16");
-    expect(parseFormatParam("9x16")).toBe("9:16");
-    expect(parseFormatParam("9-16")).toBe("9:16");
-    expect(parseFormatParam("portrait")).toBe("9:16");
-    expect(parseFormatParam("Portrait")).toBe("9:16");
+  it("lit le paramètre d'URL ?format= (le portrait n'est plus proposé)", () => {
     expect(parseFormatParam("21:9")).toBe("21:9");
+    expect(parseFormatParam("21x9")).toBe("21:9");
+    expect(parseFormatParam("21-9")).toBe("21:9");
     expect(parseFormatParam("ultrawide")).toBe("21:9");
+    expect(parseFormatParam("Projecteur")).toBe("4:3");
     expect(parseFormatParam(["32:9", "4:3"])).toBe("32:9");
+    expect(parseFormatParam("9:16")).toBeNull();
+    expect(parseFormatParam("portrait")).toBeNull();
     expect(parseFormatParam("5:4")).toBeNull();
     expect(parseFormatParam("")).toBeNull();
     expect(parseFormatParam(undefined)).toBeNull();
@@ -106,34 +111,42 @@ describe("formats d'écran", () => {
 });
 
 describe("mises en page par format", () => {
-  it.each(FORMAT_IDS)("format %s : chaque mise en page proposée tient sans chevauchement ni débordement", (format) => {
-    for (const rtl of [false, true]) {
-      for (const preset of LAYOUT_PRESETS) {
-        // Dans le format lui-même (bouton du Studio)…
-        const applied = applyPreset({ ...allVisible(), blocks: formatBlocks(allVisible(), format, rtl) }, preset, rtl, format);
-        expect(applied.blocks).toHaveLength(BLOCK_TYPES.length);
-        expect(findOverlaps(applied.blocks), `${format} ${preset} ${rtl}`).toEqual([]);
-        expectInBounds(applied.blocks);
-        // … et dérivée depuis la même mise en page 16:9.
-        const main = applyPreset(allVisible(), preset, rtl);
-        const derived = deriveFormatBlocks(main, format, rtl);
-        expect(derived.map((b) => b.type)).toEqual(main.blocks.map((b) => b.type));
-        expect(findOverlaps(derived), `dérivée ${format} ${preset} ${rtl}`).toEqual([]);
-        expectInBounds(derived);
+  it.each(FORMAT_IDS)("format %s : chaque mise en page proposée tient sans chevauchement ni débordement, avec ou sans catégories", (format) => {
+    for (const categories of [false, true]) {
+      for (const rtl of [false, true]) {
+        for (const preset of LAYOUT_PRESETS) {
+          const base = allVisible({ categories });
+          const label = `${format} ${preset} rtl=${rtl} catégories=${categories}`;
+          // Dans le format lui-même (bouton du Studio)…
+          const applied = applyPreset({ ...base, blocks: formatBlocks(base, format, rtl) }, preset, rtl, format);
+          expect(applied.blocks).toHaveLength(BLOCK_TYPES.length);
+          expect(findOverlaps(applied.blocks), label).toEqual([]);
+          expectInBounds(applied.blocks);
+          expect(by(applied.blocks, "categories").visible).toBe(categories);
+          // … et dérivée depuis la même mise en page 16:9.
+          const main = applyPreset(base, preset, rtl);
+          const derived = deriveFormatBlocks(main, format, rtl);
+          expect(derived.map((b) => b.type)).toEqual(main.blocks.map((b) => b.type));
+          expect(findOverlaps(derived), `dérivée ${label}`).toEqual([]);
+          expectInBounds(derived);
+          expect(by(derived, "categories").visible).toBe(categories);
+        }
       }
     }
   });
 
   it.each(ALT_FORMAT_IDS)("format %s : dérivation sans chevauchement quand des blocs sont masqués", (format) => {
-    const combos: Array<Array<(typeof BLOCK_TYPES)[number]>> = [["message"], ["title", "message"], ["donations"], ["qrcode"], ["logo", "title", "message"], ["goal", "qrcode"]];
+    const combos: BlockType[][] = [["message"], ["title", "message"], ["donations"], ["qrcode"], ["logo", "title", "message"], ["goal", "qrcode"]];
     for (const hidden of combos) {
-      const c = allVisible();
-      c.blocks = c.blocks.map((b) => (hidden.includes(b.type) ? { ...b, visible: false } : b));
-      for (const rtl of [false, true]) {
-        const derived = deriveFormatBlocks(c, format, rtl);
-        expect(findOverlaps(derived), `${format} sans ${hidden.join("+")}`).toEqual([]);
-        expectInBounds(derived);
-        for (const type of hidden) expect(derived.find((b) => b.type === type)?.visible).toBe(false);
+      for (const categories of [false, true]) {
+        const c = applyPreset(allVisible({ categories }), "classic", false);
+        c.blocks = c.blocks.map((b) => (hidden.includes(b.type) ? { ...b, visible: false } : b));
+        for (const rtl of [false, true]) {
+          const derived = deriveFormatBlocks(c, format, rtl);
+          expect(findOverlaps(derived), `${format} sans ${hidden.join("+")}`).toEqual([]);
+          expectInBounds(derived);
+          for (const type of hidden) expect(by(derived, type).visible).toBe(false);
+        }
       }
     }
   });
@@ -146,38 +159,59 @@ describe("mises en page par format", () => {
     expect(formatBlocks(c, "16:9", false)).toBe(c.blocks);
   });
 
-  it("portrait 9:16 : empilement vertical lisible (logo, titre, total, objectif, dons, QR code)", () => {
-    const blocks = deriveFormatBlocks(allVisible(), "9:16", false);
-    const by = (t: string) => blocks.find((b) => b.type === t)!;
-    const order = ["logo", "title", "total", "goal", "donations", "qrcode"].map((t) => by(t).y);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Les blocs principaux occupent presque toute la largeur ; le QR code est en bas.
-    expect(by("total").w).toBeGreaterThan(80);
-    expect(by("donations").w).toBeGreaterThan(80);
-    expect(by("qrcode").y + by("qrcode").h).toBeGreaterThan(90);
-    expect(by("donations").h).toBeGreaterThan(by("total").h);
-  });
-
   it("21:9 et 32:9 : répartition horizontale (le total et la liste des dons côte à côte)", () => {
     for (const format of ["21:9", "32:9"] as const) {
       const blocks = deriveFormatBlocks(allVisible(), format, false);
-      const by = (t: string) => blocks.find((b) => b.type === t)!;
-      expect(by("logo").x).toBeLessThan(by("total").x);
-      expect(by("qrcode").x).toBeGreaterThan(by("total").x + by("total").w - 0.01);
-      expect(by("donations").h).toBeGreaterThan(40);
+      expect(by(blocks, "logo").x).toBeLessThan(by(blocks, "total").x);
+      expect(by(blocks, "qrcode").x).toBeGreaterThan(by(blocks, "total").x + by(blocks, "total").w - 0.01);
+      expect(by(blocks, "donations").h).toBeGreaterThan(40);
     }
     const ultra = deriveFormatBlocks(allVisible(), "32:9", false);
-    const by = (t: string) => ultra.find((b) => b.type === t)!;
     // En 32:9, la liste des dons a sa propre colonne, à droite du total.
-    expect(by("donations").x).toBeGreaterThanOrEqual(by("total").x + by("total").w);
+    expect(by(ultra, "donations").x).toBeGreaterThanOrEqual(by(ultra, "total").x + by(ultra, "total").w);
+  });
+
+  it("21:9 et 32:9 : le bandeau des catégories surmonte la liste des dons, dans sa colonne", () => {
+    for (const format of ["21:9", "32:9"] as const) {
+      for (const rtl of [false, true]) {
+        for (const preset of LAYOUT_PRESETS) {
+          const main = applyPreset(allVisible({ categories: true }), preset, rtl);
+          const blocks = deriveFormatBlocks(main, format, rtl);
+          const cat = by(blocks, "categories");
+          const list = by(blocks, "donations");
+          expect(cat.visible).toBe(true);
+          expect(cat.x).toBeCloseTo(list.x, 1);
+          expect(cat.w).toBeCloseTo(list.w, 1);
+          expect(cat.y + cat.h).toBeLessThanOrEqual(list.y);
+          expect(list.y - (cat.y + cat.h)).toBeLessThan(5);
+          // Bandeau : catégories côte à côte (bloc nettement plus large que haut à l'écran).
+          const { width, height } = SCREEN_FORMATS[format];
+          expect((cat.w * width) / (cat.h * height)).toBeGreaterThan(2.4);
+        }
+      }
+      // Sans catégorie : le bloc reste masqué et la liste des dons reprend la place.
+      const without = deriveFormatBlocks(allVisible(), format, false);
+      const withCats = deriveFormatBlocks(applyPreset(allVisible({ categories: true }), "classic", false), format, false);
+      expect(by(without, "categories").visible).toBe(false);
+      expect(by(without, "donations").h).toBeGreaterThan(by(withCats, "donations").h);
+    }
+  });
+
+  it("16:10 et 4:3 : les catégories restent taillées dans la liste des dons, comme en 16:9", () => {
+    const main = applyPreset(allVisible({ categories: true }), "classic", false);
+    for (const format of ["16:10", "4:3"] as const) {
+      const blocks = deriveFormatBlocks(main, format, false);
+      expect(by(blocks, "categories")).toEqual(by(main.blocks, "categories"));
+      expect(findOverlaps(blocks)).toEqual([]);
+    }
   });
 
   it("retourne les mises en page dérivées pour l'hébreu (lecture de droite à gauche)", () => {
-    for (const format of ["9:16", "21:9", "32:9"] as const) {
-      const ltr = deriveFormatBlocks(allVisible(), format, false);
-      const rtl = deriveFormatBlocks(allVisible(), format, true);
+    for (const format of ["21:9", "32:9"] as const) {
+      const ltr = deriveFormatBlocks(applyPreset(allVisible({ categories: true }), "classic", false), format, false);
+      const rtl = deriveFormatBlocks(applyPreset(allVisible({ categories: true }), "classic", true), format, true);
       for (const b of ltr) {
-        const mirrored = rtl.find((r) => r.type === b.type)!;
+        const mirrored = by(rtl, b.type);
         expect(mirrored.x, `${format} ${b.type}`).toBeCloseTo(100 - b.x - b.w, 1);
         expect(mirrored.y).toBe(b.y);
       }
@@ -186,45 +220,68 @@ describe("mises en page par format", () => {
 
   it("un bloc « Texte » vide ne prend pas de place dans les formats dérivés", () => {
     const c = defaultShowConfig();
-    const empty = deriveFormatBlocks(c, "9:16", false);
-    expect(empty.find((b) => b.type === "message")?.visible).toBe(false);
+    expect(by(deriveFormatBlocks(c, "21:9", false), "message").visible).toBe(false);
     c.texts.message = "Merci !";
-    expect(deriveFormatBlocks(c, "9:16", false).find((b) => b.type === "message")?.visible).toBe(true);
+    expect(by(deriveFormatBlocks(c, "21:9", false), "message").visible).toBe(true);
     // Le 16:9 ne change pas.
-    expect(c.blocks.find((b) => b.type === "message")?.visible).toBe(true);
+    expect(by(c.blocks, "message").visible).toBe(true);
   });
 
   it("suit la mise en page 16:9 choisie (Donateurs à l'honneur : liste des dons à gauche)", () => {
-    const donors = applyPreset(allVisible(), "donors", false);
-    const derived = deriveFormatBlocks(donors, "21:9", false);
-    const list = derived.find((b) => b.type === "donations")!;
-    expect(list.x).toBeLessThan(10);
-    expect(list.h).toBeGreaterThan(80);
+    for (const categories of [false, true]) {
+      const donors = applyPreset(allVisible({ categories }), "donors", false);
+      const list = by(deriveFormatBlocks(donors, "21:9", false), "donations");
+      expect(list.x).toBeLessThan(10);
+      expect(list.h).toBeGreaterThan(categories ? 70 : 80);
+    }
   });
 
   it("conserve la taille du texte, la visibilité et l'ordre des calques", () => {
     const c = allVisible();
     c.blocks = [...c.blocks].reverse().map((b) => (b.type === "total" ? { ...b, fontScale: 1.4 } : b));
-    const derived = deriveFormatBlocks(c, "9:16", false);
+    const derived = deriveFormatBlocks(c, "32:9", false);
     expect(derived.map((b) => b.type)).toEqual(c.blocks.map((b) => b.type));
-    expect(derived.find((b) => b.type === "total")?.fontScale).toBe(1.4);
+    expect(by(derived, "total").fontScale).toBe(1.4);
   });
 
   it("une mise en page personnalisée remplace la mise en page dérivée, puis se réinitialise", () => {
     const c = allVisible();
-    const derived = formatBlocks(c, "9:16", false);
+    const derived = formatBlocks(c, "21:9", false);
     const custom = derived.map((b) => (b.type === "total" ? { ...b, y: b.y + 1 } : b));
-    const withCustom = withFormatBlocks(c, "9:16", custom);
-    expect(customFormatBlocks(withCustom, "9:16")).toBe(custom);
-    expect(formatBlocks(withCustom, "9:16", false)).toBe(custom);
+    const withCustom = withFormatBlocks(c, "21:9", custom);
+    expect(customFormatBlocks(withCustom, "21:9")).toBe(custom);
+    expect(formatBlocks(withCustom, "21:9", false)).toBe(custom);
     // Les autres formats restent dérivés ; le 16:9 est inchangé.
-    expect(customFormatBlocks(withCustom, "21:9")).toBeNull();
+    expect(customFormatBlocks(withCustom, "32:9")).toBeNull();
     expect(withCustom.blocks).toBe(c.blocks);
     // Le 16:9 s'enregistre dans le champ principal.
     expect(withFormatBlocks(c, "16:9", custom).blocks).toBe(custom);
-    const reset = withoutFormatBlocks(withCustom, "9:16");
+    const reset = withoutFormatBlocks(withCustom, "21:9");
     expect(reset).not.toHaveProperty("layouts");
-    expect(formatBlocks(reset, "9:16", false)).toEqual(derived);
+    expect(formatBlocks(reset, "21:9", false)).toEqual(derived);
+  });
+
+  it("les catégories apparaissent et disparaissent aussi dans les mises en page personnalisées", () => {
+    const base = defaultShowConfig();
+    base.texts.message = "Merci";
+    const custom = withFormatBlocks(withFormatBlocks(base, "21:9", deriveFormatBlocks(base, "21:9", false)), "4:3", base.blocks);
+    const revealed = revealCategoriesBlock(custom, false);
+    for (const blocks of [revealed.blocks, revealed.layouts!["21:9"]!, revealed.layouts!["4:3"]!]) {
+      expect(by(blocks, "categories").visible).toBe(true);
+      expect(findOverlaps(blocks)).toEqual([]);
+    }
+    const hidden = hideCategoriesBlock(revealed);
+    for (const [blocks, before] of [
+      [hidden.blocks, custom.blocks],
+      [hidden.layouts!["21:9"]!, custom.layouts!["21:9"]!],
+      [hidden.layouts!["4:3"]!, custom.layouts!["4:3"]!],
+    ] as const) {
+      expect(by(blocks, "categories").visible).toBe(false);
+      // La liste des dons reprend sa place d'origine.
+      expect(by(blocks, "donations")).toEqual(by(before, "donations"));
+    }
+    // Rien à faire : configuration inchangée.
+    expect(hideCategoriesBlock(custom)).toBe(custom);
   });
 
   it("disposition automatique et correction des chevauchements dans chaque format", () => {
@@ -252,27 +309,38 @@ describe("configuration : rétrocompatibilité des formats", () => {
     for (const format of ALT_FORMAT_IDS) expect(customFormatBlocks(config, format)).toBeNull();
   });
 
+  it("ignore sans erreur une mise en page 9:16 déjà enregistrée (format retiré)", () => {
+    const base = defaultShowConfig();
+    const config = normalizeShowConfig({ ...base, layouts: { "9:16": base.blocks.map((b) => ({ ...b, y: 1 })) } });
+    expect(showConfigSchema.safeParse(config).success).toBe(true);
+    expect(config).not.toHaveProperty("layouts");
+    expect(config.blocks).toEqual(base.blocks);
+    // Avec un autre format personnalisé, seul celui-ci est conservé.
+    const both = normalizeShowConfig({ ...base, layouts: { "9:16": base.blocks, "21:9": base.blocks } });
+    expect(Object.keys(both.layouts ?? {})).toEqual(["21:9"]);
+  });
+
   it("normalise les mises en page par format (formats inconnus, blocs invalides, blocs manquants)", () => {
     const base = defaultShowConfig();
-    const portrait = deriveFormatBlocks({ ...base, texts: { ...base.texts, message: "Merci" } }, "9:16", false);
+    const wide = deriveFormatBlocks({ ...base, texts: { ...base.texts, message: "Merci" } }, "21:9", false);
     const config = normalizeShowConfig({
       ...base,
       layouts: {
-        "9:16": [...portrait.filter((b) => b.type !== "qrcode"), { type: "inconnu" }, { ...portrait[0], x: 300 }],
-        "21:9": "pas une liste",
-        "5:4": portrait,
-        "16:9": portrait,
+        "21:9": [...wide.filter((b) => b.type !== "qrcode"), { type: "inconnu" }, { ...wide[0], x: 300 }],
+        "4:3": "pas une liste",
+        "5:4": wide,
+        "16:9": wide,
         "32:9": [],
       },
     });
     expect(showConfigSchema.safeParse(config).success).toBe(true);
-    expect(Object.keys(config.layouts ?? {})).toEqual(["9:16"]);
-    const blocks = config.layouts!["9:16"]!;
+    expect(Object.keys(config.layouts ?? {})).toEqual(["21:9"]);
+    const blocks = config.layouts!["21:9"]!;
     expect(blocks).toHaveLength(BLOCK_TYPES.length);
     // Le QR code manquant reprend la position du 16:9, masqué.
-    const qr = blocks.find((b) => b.type === "qrcode")!;
+    const qr = by(blocks, "qrcode");
     expect(qr.visible).toBe(false);
-    expect(qr.x).toBe(base.blocks.find((b) => b.type === "qrcode")!.x);
+    expect(qr.x).toBe(by(base.blocks, "qrcode").x);
     // Le doublon est ignoré, les blocs restent dans la surface.
     expect(blocks.filter((b) => b.type === "logo")).toHaveLength(1);
     expectInBounds(blocks);
@@ -294,15 +362,27 @@ describe("rendu par format", () => {
     expect(html).toContain(`width:${width}px;height:${height}px`);
   });
 
+  it("affiche les catégories de l'événement dans la scène 32:9", () => {
+    const categories = [
+      { id: "a", name: "Parrains", color: "#e4b65c", total: 5000, count: 2 },
+      { id: "b", name: "Amis", color: "#7fe3ff", total: 1200, count: 3 },
+    ];
+    const config = applyPreset(allVisible({ categories: true }), "classic", false);
+    const html = renderToStaticMarkup(
+      createElement(ShowStage, { config, event: { ...event, categories }, total: 6200, donations: demoDonations("fr"), control, formUrl: null, format: "32:9", lowPower: true }),
+    );
+    expect(html).toContain("data-categories");
+    expect(html).toContain("Parrains");
+  });
+
   it("la scène hébreu est rendue de droite à gauche avec la mise en page miroir", () => {
     const he = demoEvent("he");
     const html = renderToStaticMarkup(
-      createElement(ShowStage, { config: allVisible(), event: he, total: 1000, donations: demoDonations("he"), control, formUrl: null, format: "9:16", lowPower: true }),
+      createElement(ShowStage, { config: allVisible(), event: he, total: 1000, donations: demoDonations("he"), control, formUrl: null, format: "21:9", lowPower: true }),
     );
     expect(html).toContain('dir="rtl"');
-    const derived = deriveFormatBlocks(allVisible(), "9:16", true);
-    const title = derived.find((b) => b.type === "title")!;
-    expect(html).toContain(`left:${(title.x / 100) * 1080}px`);
+    const title = by(deriveFormatBlocks(allVisible(), "21:9", true), "title");
+    expect(html).toContain(`left:${(title.x / 100) * 2520}px`);
   });
 
   it("les décors couvrent chaque format avec un dessin à ses dimensions (aucune déformation)", () => {

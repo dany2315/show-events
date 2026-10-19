@@ -19,10 +19,12 @@ import { GoalFigures } from "@/components/show/blocks";
 import { dictionaries } from "@/i18n/dictionaries";
 
 describe("configuration du show", () => {
-  it("la configuration par défaut est valide et contient les 7 blocs du cahier des charges", () => {
+  it("la configuration par défaut est valide et contient les 7 blocs du cahier des charges, plus les catégories", () => {
     const config = defaultShowConfig();
     expect(showConfigSchema.safeParse(config).success).toBe(true);
-    expect(BLOCK_TYPES).toHaveLength(7);
+    expect(BLOCK_TYPES).toHaveLength(8);
+    // Bloc « Catégories » masqué par défaut (événement sans catégories)
+    expect(config.blocks.find((b) => b.type === "categories")?.visible).toBe(false);
     expect(config.blocks.map((b) => b.type).sort()).toEqual([...BLOCK_TYPES].sort());
     expect(config).not.toHaveProperty("video");
   });

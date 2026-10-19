@@ -25,7 +25,12 @@ export async function POST(request: Request, ctx: RouteContext<"/api/events/[eve
     const body = manualDonationSchema.parse(await request.json());
     const result = await recordDonation({
       eventId,
-      donorName: body.donorName,
+      firstName: body.firstName ?? null,
+      lastName: body.lastName ?? null,
+      phone: body.phone ?? null,
+      email: body.email ?? null,
+      anonymous: body.anonymous,
+      categoryId: body.categoryId ?? null,
       amount: body.amount,
       isFictitious: body.isFictitious,
       source: "MANUAL",

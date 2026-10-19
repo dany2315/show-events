@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { publicDonor } from "./helpers";
 
 test.describe("pages publiques", () => {
   test("page d'accueil en français, puis en hébreu (RTL)", async ({ page }) => {
@@ -37,7 +38,7 @@ test.describe("pages publiques", () => {
     await expect(page.getByText("Ce lien de diffusion n'est plus valide.")).toBeVisible();
     await page.goto("/d/lien-invalide-0123456789abcdef");
     await expect(page.getByText("Ce lien n'est plus valide.")).toBeVisible();
-    const res = await request.post("/api/d/lien-invalide-0123456789abcdef", { data: { donorName: "X", amount: 10, idempotencyKey: "abcdefgh1234" } });
+    const res = await request.post("/api/d/lien-invalide-0123456789abcdef", { data: { ...publicDonor("X"), amount: 10, idempotencyKey: "abcdefgh1234" } });
     expect(res.status()).toBe(404);
   });
 

@@ -1,5 +1,6 @@
 import type { AppLocale, CurrencyCode, EventStatusCode } from "../constants";
 import type { ShowConfig } from "../show/config";
+import type { PublicCategory } from "../categories";
 
 /** Une promesse telle que vue par le public : aucune distinction réel / fictif. */
 export type PublicDonation = {
@@ -7,7 +8,12 @@ export type PublicDonation = {
   donorName: string;
   amount: number;
   createdAt: string;
+  /** Catégorie de donateurs (facultative, absente des anciens messages). */
+  categoryId?: string | null;
 };
+
+/** Partie d'une promesse qui compte dans les totaux par catégorie (avant correction / suppression). */
+export type DonationShare = { amount: number; categoryId: string | null };
 
 export type LiveControl = {
   /** Animations en pause : les promesses continuent d'arriver, sans effets. */
@@ -29,6 +35,8 @@ export type LiveEventInfo = {
   status: EventStatusCode;
   logoUrl: string | null;
   organizationName: string;
+  /** Catégories de donateurs et leurs totaux (hors promesses supprimées), mis à jour en direct. */
+  categories?: PublicCategory[];
 };
 
 export type LiveSnapshot = {
@@ -47,8 +55,8 @@ export type LiveCommand = "celebrate" | "goal";
 
 export type LiveMessage =
   | { seq: number; type: "donation.created"; donation: PublicDonation; total: number; count: number }
-  | { seq: number; type: "donation.updated"; donation: PublicDonation; total: number; count: number }
-  | { seq: number; type: "donation.deleted"; donationId: string; total: number; count: number }
+  | { seq: number; type: "donation.updated"; donation: PublicDonation; previous?: DonationShare; total: number; count: number }
+  | { seq: number; type: "donation.deleted"; donationId: string; removed?: DonationShare; total: number; count: number }
   | { seq: number; type: "control"; control: LiveControl; command: LiveCommand | null }
   | { seq: number; type: "layout.updated"; version: number }
   | { seq: number; type: "event.updated" };

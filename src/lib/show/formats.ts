@@ -3,18 +3,19 @@
  *
  * Le 16:9 (1920 × 1080) reste la surface de référence : c'est la mise en page principale,
  * celle des aperçus (Studio, Régie, page d'accueil) et des vignettes. Les autres formats
- * ont leur propre surface (même hauteur de référence 1080 px, ou même largeur 1080 px pour
- * le portrait) et une mise en page facultative : en son absence, elle est dérivée
- * automatiquement du 16:9 (voir `smart-layout.ts`).
+ * ont leur propre surface (même hauteur de référence de 1080 px) et une mise en page
+ * facultative : en son absence, elle est dérivée automatiquement du 16:9 (voir
+ * `smart-layout.ts`). Pas de format portrait : l'écran du show est toujours couché ; une
+ * fenêtre en portrait prend le format le plus proche (4:3), avec des bandes noires.
  */
-export const FORMAT_IDS = ["16:9", "16:10", "4:3", "21:9", "32:9", "9:16"] as const;
+export const FORMAT_IDS = ["16:9", "16:10", "4:3", "21:9", "32:9"] as const;
 export type FormatId = (typeof FORMAT_IDS)[number];
 
 /** Format de référence : mise en page principale (champ historique `blocks`). */
 export const REFERENCE_FORMAT: FormatId = "16:9";
 
 /** Formats secondaires : mise en page facultative (champ `layouts`). */
-export const ALT_FORMAT_IDS = ["16:10", "4:3", "21:9", "32:9", "9:16"] as const satisfies readonly FormatId[];
+export const ALT_FORMAT_IDS = ["16:10", "4:3", "21:9", "32:9"] as const satisfies readonly FormatId[];
 export type AltFormatId = (typeof ALT_FORMAT_IDS)[number];
 
 export type ScreenFormat = {
@@ -32,7 +33,6 @@ export const SCREEN_FORMATS: Record<FormatId, ScreenFormat> = {
   "4:3": { id: "4:3", label: { fr: "4:3 · Projecteur classique", he: "4:3 · מקרן קלאסי" }, width: 1440, height: 1080 },
   "21:9": { id: "21:9", label: { fr: "21:9 · Écran ultra-large", he: "21:9 · מסך אולטרה-רחב" }, width: 2520, height: 1080 },
   "32:9": { id: "32:9", label: { fr: "32:9 · Double écran, bandeau LED", he: "32:9 · מסך כפול, רצועת לד" }, width: 3840, height: 1080 },
-  "9:16": { id: "9:16", label: { fr: "9:16 · Portrait (totem, écran vertical)", he: "9:16 · לאורך (טוטם, מסך אנכי)" }, width: 1080, height: 1920 },
 };
 
 export const FORMAT_LIST: ScreenFormat[] = FORMAT_IDS.map((id) => SCREEN_FORMATS[id]);
@@ -65,8 +65,6 @@ export function closestFormat(width: number, height: number): FormatId {
 }
 
 const ALIASES: Record<string, FormatId> = {
-  portrait: "9:16",
-  vertical: "9:16",
   paysage: "16:9",
   landscape: "16:9",
   standard: "16:9",
@@ -80,8 +78,8 @@ const ALIASES: Record<string, FormatId> = {
 };
 
 /**
- * Lit le paramètre d'URL `?format=` de l'écran géant : `9:16`, `9x16`, `9-16`, `9/16`
- * ou un alias (`portrait`, `ultrawide`…). Renvoie `null` si la valeur est absente ou inconnue
+ * Lit le paramètre d'URL `?format=` de l'écran géant : `21:9`, `21x9`, `21-9`, `21/9`
+ * ou un alias (`ultrawide`, `projecteur`…). Renvoie `null` si la valeur est absente ou inconnue
  * (le format est alors détecté d'après la taille de la fenêtre).
  */
 export function parseFormatParam(value: string | string[] | null | undefined): FormatId | null {

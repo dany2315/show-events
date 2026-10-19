@@ -15,6 +15,7 @@ import {
   ImagePlus,
   Loader2,
   QrCode,
+  Tags,
   Text,
   Trash2,
   Trophy,
@@ -64,13 +65,15 @@ export const BLOCK_ICONS: Record<BlockType, React.ComponentType<{ className?: st
   donations: List,
   message: Text,
   qrcode: QrCode,
+  categories: Tags,
 };
 
 /** Icône d'un format d'écran : rectangle aux proportions du format (sélecteur du Studio). */
 export function RatioIcon({ width, height, active = false }: { width: number; height: number; active?: boolean }) {
+  // Formats couchés uniquement : largeur plafonnée, hauteur déduite du rapport.
   const r = width / height;
-  const w = r >= 1 ? Math.min(22, 12 * r) : 16 * r;
-  const h = r >= 1 ? w / r : 16;
+  const w = Math.min(22, 12 * r);
+  const h = w / r;
   return (
     <span aria-hidden className="flex size-[22px] shrink-0 items-center justify-center">
       <span className={cn("block rounded-[2px] border-[1.5px]", active ? "border-gold" : "border-current")} style={{ width: w, height: h }} />
@@ -235,10 +238,7 @@ function PresetThumb({ preset, config, rtl, format }: { preset: LayoutPreset; co
   const blocks = applyPreset(config, preset, rtl, format).blocks.filter((b) => b.visible);
   const f = getFormat(format);
   return (
-    <span
-      className="relative mx-auto block bg-muted/60"
-      style={f.height > f.width ? { width: (96 * f.width) / f.height, height: 96 } : { aspectRatio: `${f.width} / ${f.height}` }}
-    >
+    <span className="relative block bg-muted/60" style={{ aspectRatio: `${f.width} / ${f.height}` }}>
       {blocks.map((b) => (
         <span
           key={b.type}

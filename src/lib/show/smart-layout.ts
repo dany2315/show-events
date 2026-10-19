@@ -1,5 +1,6 @@
 import { clampBlock, customFormatBlocks, type BlockType, type ShowBlock, type ShowConfig } from "./config";
 import { getFormat, type FormatId } from "./formats";
+import { carveCategories } from "./categories-layout";
 
 /**
  * Moteur de mise en page intelligente du Studio (sans service externe, instantané).
@@ -15,7 +16,8 @@ export type LayoutPreset = (typeof LAYOUT_PRESETS)[number];
 
 type Rect = { x: number; y: number; w: number; h: number };
 type PresetDef = {
-  rects: Record<BlockType, Rect>;
+  /** Le bloc « Catégories » n'a pas d'emplacement propre : il est taillé dans la liste des dons. */
+  rects: Record<Exclude<BlockType, "categories">, Rect>;
   align?: Partial<Record<BlockType, ShowBlock["align"]>>;
   donations: ShowConfig["donations"];
 };
@@ -100,11 +102,16 @@ export function applyPreset(config: ShowConfig, preset: LayoutPreset, rtl: boole
 
 function presetBlocks(blocks: ShowBlock[], preset: LayoutPreset, rtl: boolean): ShowBlock[] {
   const def = PRESETS[preset];
-  return blocks.map((block) => {
-    const rect = def.rects[block.type];
-    const x = rtl ? 100 - rect.x - rect.w : rect.x;
-    return clampBlock({ ...block, ...rect, x, align: def.align?.[block.type] ?? defaultAlign(block.type) });
-  });
+  return carveCategories(
+    blocks.map((block) => {
+      // Le bloc des catégories est placé ensuite, dans l'espace de la liste des dons.
+      if (block.type === "categories") return block;
+      const rect = def.rects[block.type];
+      const x = rtl ? 100 - rect.x - rect.w : rect.x;
+      return clampBlock({ ...block, ...rect, x, align: def.align?.[block.type] ?? defaultAlign(block.type) });
+    }),
+    rtl,
+  );
 }
 
 export function autoLayout(config: ShowConfig, rtl: boolean, format: FormatId = "16:9") {
@@ -118,12 +125,11 @@ export function matchPreset(blocks: ShowBlock[], rtl: boolean): LayoutPreset | n
   if (visible.length === 0) return null;
   const near = (a: number, b: number) => Math.abs(a - b) < 0.6;
   for (const preset of LAYOUT_PRESETS) {
-    const rects = PRESETS[preset].rects;
+    // Comparaison avec la mise en page appliquée (catégories taillées dans la liste des dons comprises).
+    const placed = presetBlocks(blocks, preset, rtl);
     const same = visible.every((b) => {
-      const r = rects[b.type];
-      if (!r) return false;
-      const x = rtl ? 100 - r.x - r.w : r.x;
-      return near(b.x, x) && near(b.y, r.y) && near(b.w, r.w) && near(b.h, r.h);
+      const r = placed.find((p) => p.type === b.type);
+      return Boolean(r) && near(b.x, r!.x) && near(b.y, r!.y) && near(b.w, r!.w) && near(b.h, r!.h);
     });
     if (same) return preset;
   }
@@ -131,7 +137,7 @@ export function matchPreset(blocks: ShowBlock[], rtl: boolean): LayoutPreset | n
 }
 
 function defaultAlign(type: BlockType): ShowBlock["align"] {
-  return type === "total" || type === "goal" || type === "qrcode" ? "center" : "start";
+  return type === "total" || type === "goal" || type === "qrcode" || type === "categories" ? "center" : "start";
 }
 
 /* ─── Chevauchements ──────────────────────────────────────────────────── */
@@ -197,73 +203,48 @@ function findFreeSpot(block: ShowBlock, placed: ShowBlock[]): ShowBlock | null {
 /* ─── Formats d'écran ─────────────────────────────────────────────────── */
 
 /**
- * Familles de formats :
+ * Familles de formats (l'écran du show est toujours couché : pas de format portrait) :
  *  - « proportional » (16:10, 4:3) : rapport proche du 16:9, la mise en page en % est reprise
  *    telle quelle (la disposition choisie par l'utilisateur est conservée, sans chevauchement nouveau) ;
- *  - « portrait » (9:16) : empilement vertical lisible, du logo en haut au QR code en bas ;
  *  - « wide » (21:9) et « ultrawide » (32:9) : répartition horizontale en colonnes.
  */
-type FormatFamily = "proportional" | "portrait" | "wide" | "ultrawide";
+type FormatFamily = "proportional" | "wide" | "ultrawide";
 const FAMILY: Record<FormatId, FormatFamily> = {
   "16:9": "proportional",
   "16:10": "proportional",
   "4:3": "proportional",
   "21:9": "wide",
   "32:9": "ultrawide",
-  "9:16": "portrait",
 };
 
 /** Ligne d'une pile : blocs côte à côte, hauteur de base (% de la hauteur utile) et part de l'espace libre. */
 type Row = { types: BlockType[]; h: number; grow?: number; align?: ShowBlock["align"] };
-/** Colonne : largeur relative et pile de lignes ; `center` : groupe centré verticalement, sans étirement. */
+/** Colonne : largeur relative et pile de lignes ; `center` : groupe sans étirement, légèrement remonté. */
 type Column = { weight: number; rows: Row[]; center?: boolean };
 
-const PORTRAIT: Record<LayoutPreset, Row[]> = {
-  classic: [
-    { types: ["logo"], h: 7, align: "center" },
-    { types: ["title"], h: 10, grow: 0.3, align: "center" },
-    { types: ["total"], h: 12, grow: 0.4 },
-    { types: ["goal"], h: 5 },
-    { types: ["donations"], h: 30, grow: 1 },
-    { types: ["message", "qrcode"], h: 14, grow: 0.2 },
-  ],
-  spotlight: [
-    { types: ["logo", "title"], h: 9 },
-    { types: ["total"], h: 19, grow: 0.5 },
-    { types: ["goal"], h: 6 },
-    { types: ["donations"], h: 28, grow: 1 },
-    { types: ["message", "qrcode"], h: 14 },
-  ],
-  donors: [
-    { types: ["logo", "title"], h: 8 },
-    { types: ["total"], h: 10, grow: 0.2 },
-    { types: ["goal"], h: 4.5 },
-    { types: ["donations"], h: 46, grow: 1 },
-    { types: ["message", "qrcode"], h: 12 },
-  ],
-  minimal: [
-    { types: ["logo"], h: 9, align: "center" },
-    { types: ["title"], h: 9, grow: 0.2, align: "center" },
-    { types: ["total"], h: 22, grow: 0.6 },
-    { types: ["goal"], h: 6 },
-    { types: ["donations"], h: 16, grow: 0.4 },
-    { types: ["message", "qrcode"], h: 18 },
-  ],
-};
-
+/*
+ * Le bloc « Catégories » (totaux par catégorie de donateurs) forme un bandeau juste au-dessus de la
+ * liste des dons, comme en 16:9 ; masqué (événement sans catégorie), il ne prend aucune place.
+ */
 const WIDE: Record<LayoutPreset, Column[]> = {
   classic: [
     { weight: 0.25, rows: [{ types: ["logo"], h: 22 }, { types: ["title"], h: 40, grow: 1 }, { types: ["message"], h: 28 }] },
-    { weight: 0.56, rows: [{ types: ["total"], h: 28 }, { types: ["goal"], h: 10 }, { types: ["donations"], h: 50, grow: 1 }] },
+    {
+      weight: 0.56,
+      rows: [{ types: ["total"], h: 28 }, { types: ["goal"], h: 10 }, { types: ["categories"], h: 12 }, { types: ["donations"], h: 40, grow: 1 }],
+    },
     { weight: 0.16, center: true, rows: [{ types: ["qrcode"], h: 46 }] },
   ],
   spotlight: [
     { weight: 0.2, rows: [{ types: ["logo"], h: 20 }, { types: ["title"], h: 34, grow: 1 }, { types: ["message"], h: 30 }] },
-    { weight: 0.6, rows: [{ types: ["total"], h: 38, grow: 0.5 }, { types: ["goal"], h: 11 }, { types: ["donations"], h: 40, grow: 1 }] },
+    {
+      weight: 0.6,
+      rows: [{ types: ["total"], h: 36, grow: 0.5 }, { types: ["goal"], h: 11 }, { types: ["categories"], h: 12 }, { types: ["donations"], h: 30, grow: 1 }],
+    },
     { weight: 0.16, center: true, rows: [{ types: ["qrcode"], h: 50 }] },
   ],
   donors: [
-    { weight: 0.44, rows: [{ types: ["donations"], h: 100, grow: 1 }] },
+    { weight: 0.44, rows: [{ types: ["categories"], h: 12 }, { types: ["donations"], h: 80, grow: 1 }] },
     {
       weight: 0.38,
       rows: [
@@ -278,7 +259,10 @@ const WIDE: Record<LayoutPreset, Column[]> = {
   ],
   minimal: [
     { weight: 0.24, center: true, rows: [{ types: ["logo"], h: 22 }, { types: ["title"], h: 26 }, { types: ["message"], h: 30 }] },
-    { weight: 0.56, rows: [{ types: ["total"], h: 46, grow: 1 }, { types: ["goal"], h: 12 }, { types: ["donations"], h: 30, grow: 0.4 }] },
+    {
+      weight: 0.56,
+      rows: [{ types: ["total"], h: 42, grow: 1 }, { types: ["goal"], h: 11 }, { types: ["categories"], h: 12 }, { types: ["donations"], h: 22, grow: 0.4 }],
+    },
     { weight: 0.16, center: true, rows: [{ types: ["qrcode"], h: 52 }] },
   ],
 };
@@ -287,17 +271,17 @@ const ULTRAWIDE: Record<LayoutPreset, Column[]> = {
   classic: [
     { weight: 0.18, rows: [{ types: ["logo"], h: 22 }, { types: ["title"], h: 40, grow: 1 }, { types: ["message"], h: 28 }] },
     { weight: 0.29, center: true, rows: [{ types: ["total"], h: 40 }, { types: ["goal"], h: 13 }] },
-    { weight: 0.4, rows: [{ types: ["donations"], h: 100, grow: 1 }] },
+    { weight: 0.4, rows: [{ types: ["categories"], h: 13 }, { types: ["donations"], h: 75, grow: 1 }] },
     { weight: 0.11, center: true, rows: [{ types: ["qrcode"], h: 56 }] },
   ],
   spotlight: [
     { weight: 0.17, rows: [{ types: ["logo"], h: 22 }, { types: ["title"], h: 36, grow: 1 }, { types: ["message"], h: 30 }] },
     { weight: 0.38, center: true, rows: [{ types: ["total"], h: 52 }, { types: ["goal"], h: 14 }] },
-    { weight: 0.32, rows: [{ types: ["donations"], h: 100, grow: 1 }] },
+    { weight: 0.32, rows: [{ types: ["categories"], h: 13 }, { types: ["donations"], h: 75, grow: 1 }] },
     { weight: 0.11, center: true, rows: [{ types: ["qrcode"], h: 56 }] },
   ],
   donors: [
-    { weight: 0.44, rows: [{ types: ["donations"], h: 100, grow: 1 }] },
+    { weight: 0.44, rows: [{ types: ["categories"], h: 12 }, { types: ["donations"], h: 80, grow: 1 }] },
     { weight: 0.3, center: true, rows: [{ types: ["logo"], h: 18 }, { types: ["title"], h: 20 }, { types: ["total"], h: 30 }, { types: ["goal"], h: 12 }] },
     { weight: 0.14, center: true, rows: [{ types: ["message"], h: 50 }] },
     { weight: 0.11, center: true, rows: [{ types: ["qrcode"], h: 56 }] },
@@ -305,53 +289,46 @@ const ULTRAWIDE: Record<LayoutPreset, Column[]> = {
   minimal: [
     { weight: 0.2, center: true, rows: [{ types: ["logo"], h: 24 }, { types: ["title"], h: 30 }, { types: ["message"], h: 30 }] },
     { weight: 0.42, center: true, rows: [{ types: ["total"], h: 55 }, { types: ["goal"], h: 15 }] },
-    { weight: 0.25, rows: [{ types: ["donations"], h: 100, grow: 1 }] },
+    { weight: 0.25, rows: [{ types: ["categories"], h: 13 }, { types: ["donations"], h: 75, grow: 1 }] },
     { weight: 0.11, center: true, rows: [{ types: ["qrcode"], h: 56 }] },
   ],
 };
 
-/** Blocs « compacts » : largeur déduite de la hauteur quand ils partagent une ligne (rapport largeur / hauteur). */
+/** Blocs « compacts » : largeur déduite de la hauteur (rapport largeur / hauteur). */
 const COMPACT: Partial<Record<BlockType, number>> = { logo: 1.1, qrcode: 0.8 };
 
 type PxRect = { x: number; y: number; w: number; h: number; align?: ShowBlock["align"] };
 
 /**
- * Compose la mise en page d'un format portrait ou large à partir des blocs (visibilité, taille du
- * texte et ordre des calques conservés). Les blocs masqués gardent leur position et restent masqués ;
+ * Compose la mise en page d'un format large à partir des blocs (visibilité, taille du texte et
+ * ordre des calques conservés). Les blocs masqués gardent leur position et restent masqués ;
  * `hideEmptyMessage` libère la place du bloc « Texte » quand aucun message n'est saisi.
  * Les types de blocs inconnus des gabarits (ajoutés plus tard) sont empilés sous la liste des dons.
  */
 function composeBlocks(blocks: ShowBlock[], preset: LayoutPreset, format: FormatId, rtl: boolean, hideEmptyMessage: boolean): ShowBlock[] {
   const { width: W, height: H } = getFormat(format);
   const shown = (type: BlockType) => blocks.some((b) => b.type === type && b.visible) && !(hideEmptyMessage && type === "message");
-  const family = FAMILY[format];
   const placed = new Map<BlockType, PxRect>();
 
-  if (family === "portrait") {
-    const rows = withExtras(PORTRAIT[preset], blocks);
-    const mx = W * 0.05;
-    const my = H * 0.03;
-    stack(rows, { x: mx, y: my, w: W - mx * 2, h: H - my * 2 }, H * 0.014, false, shown, placed);
-  } else {
-    const spec = (family === "ultrawide" ? ULTRAWIDE : WIDE)[preset];
-    const extras = extraTypes(spec.flatMap((c) => c.rows), blocks);
-    const columns = spec
-      .map((col) => {
-        const hasDonations = col.rows.some((r) => r.types.includes("donations"));
-        return hasDonations && extras.length ? { ...col, rows: [...col.rows, ...extras.map((t) => ({ types: [t], h: 18, grow: 0.3 }))] } : col;
-      })
-      .filter((col) => col.rows.some((r) => r.types.some(shown)));
-    const mx = H * 0.045;
-    const my = H * 0.05;
-    const gap = H * 0.04;
-    const avail = W - mx * 2 - gap * Math.max(0, columns.length - 1);
-    const total = columns.reduce((s, c) => s + c.weight, 0) || 1;
-    let x = mx;
-    for (const col of columns) {
-      const w = (avail * col.weight) / total;
-      stack(col.rows, { x, y: my, w, h: H - my * 2 }, H * 0.03, Boolean(col.center), shown, placed);
-      x += w + gap;
-    }
+  const spec = (FAMILY[format] === "ultrawide" ? ULTRAWIDE : WIDE)[preset];
+  const known = new Set(spec.flatMap((c) => c.rows.flatMap((r) => r.types)));
+  const extras = blocks.map((b) => b.type).filter((t) => !known.has(t));
+  const columns = spec
+    .map((col) => {
+      const hasDonations = col.rows.some((r) => r.types.includes("donations"));
+      return hasDonations && extras.length ? { ...col, rows: [...col.rows, ...extras.map((t) => ({ types: [t], h: 18, grow: 0.3 }))] } : col;
+    })
+    .filter((col) => col.rows.some((r) => r.types.some(shown)));
+  const mx = H * 0.045;
+  const my = H * 0.05;
+  const gap = H * 0.04;
+  const avail = W - mx * 2 - gap * Math.max(0, columns.length - 1);
+  const total = columns.reduce((s, c) => s + c.weight, 0) || 1;
+  let x = mx;
+  for (const col of columns) {
+    const w = (avail * col.weight) / total;
+    stack(col.rows, { x, y: my, w, h: H - my * 2 }, H * 0.03, Boolean(col.center), shown, placed);
+    x += w + gap;
   }
 
   return blocks.map((block) => {
@@ -360,18 +337,6 @@ function composeBlocks(blocks: ShowBlock[], preset: LayoutPreset, format: Format
     const px = { x: (r.x / W) * 100, y: (r.y / H) * 100, w: (r.w / W) * 100, h: (r.h / H) * 100 };
     return clampBlock({ ...block, ...px, x: rtl ? 100 - px.x - px.w : px.x, align: r.align ?? defaultAlign(block.type) });
   });
-}
-
-function extraTypes(rows: Row[], blocks: ShowBlock[]): BlockType[] {
-  const known = new Set(rows.flatMap((r) => r.types));
-  return blocks.map((b) => b.type).filter((t) => !known.has(t));
-}
-
-function withExtras(rows: Row[], blocks: ShowBlock[]): Row[] {
-  const extras = extraTypes(rows, blocks);
-  if (extras.length === 0) return rows;
-  const at = rows.findIndex((r) => r.types.includes("donations")) + 1 || rows.length;
-  return [...rows.slice(0, at), ...extras.map((t) => ({ types: [t], h: 10, grow: 0.2 })), ...rows.slice(at)];
 }
 
 /** Empile les lignes visibles dans une zone (px) ; l'espace libre est réparti selon `grow` (ou laissé autour du groupe). */
@@ -424,11 +389,11 @@ function placeRow(row: Row, area: PxRect, gap: number, out: Map<BlockType, PxRec
 
 /**
  * Mise en page dérivée du 16:9 pour un format :
- *  - 16:9, 16:10, 4:3 : la mise en page principale, reprise en % ;
- *  - 9:16, 21:9, 32:9 : composition dédiée à partir de la mise en page proposée qui correspond
- *    au 16:9 (ou, pour une disposition libre, de la mise en page automatique), avec la même
- *    visibilité, la même taille de texte et le même ordre de calques. Un bloc « Texte » vide
- *    n'occupe pas de place.
+ *  - 16:9, 16:10, 4:3 : la mise en page principale, reprise en % (catégories comprises) ;
+ *  - 21:9, 32:9 : composition dédiée à partir de la mise en page proposée qui correspond au 16:9
+ *    (ou, pour une disposition libre, de la mise en page automatique), avec la même visibilité
+ *    (le bloc « Catégories » n'apparaît que si l'événement a des catégories), la même taille de
+ *    texte et le même ordre de calques. Un bloc « Texte » vide n'occupe pas de place.
  */
 export function deriveFormatBlocks(config: ShowConfig, format: FormatId, rtl: boolean): ShowBlock[] {
   if (FAMILY[format] === "proportional") return config.blocks;

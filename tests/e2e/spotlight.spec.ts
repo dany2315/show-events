@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { key, login, state } from "./helpers";
+import { key, login, publicDonor, state } from "./helpers";
 
 /** Effet « Projecteur » : la carte du donateur doit être opaque et lisible. */
 test("projecteur : carte opaque et lisible au-dessus du show", async ({ page }) => {
@@ -50,7 +50,7 @@ test("projecteur sur le grand écran : carte opaque, au premier plan, lisible", 
   await screen.waitForTimeout(2500);
 
   const res = await request.post(`/api/d/${s.live.formToken}`, {
-    data: { donorName: "Famille Projecteur", amount: 2500, idempotencyKey: key() },
+    data: { ...publicDonor("Famille Projecteur"), amount: 2500, idempotencyKey: key() },
     headers: { "x-forwarded-for": "10.9.9.9" },
   });
   expect(res.status()).toBe(200);

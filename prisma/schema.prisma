@@ -179,6 +179,8 @@ model Event {
   status           EventStatus   @default(DRAFT)
   /// Logo spécifique à l'événement (sinon celui de l'association)
   logoUrl          String?
+  /// Page de la campagne de dons (http/https) : le donateur y est redirigé après sa promesse.
+  campaignUrl      String?
   /// État de pilotage du direct : { paused, overlay, overlayAt }
   liveControl      Json          @default("{}")
   /// Compteurs du direct, maintenus atomiquement à chaque écriture de promesse
@@ -196,6 +198,7 @@ model Event {
   layout           ShowLayout?
   accesses         EventAccess[]
   outbox           OutboxEvent[]
+  categories       DonorCategory[]
 
   @@index([organizationId, date])
   @@map("event")
@@ -204,7 +207,16 @@ model Event {
 model Donation {
   id             String         @id @default(cuid())
   eventId        String
+  /// Nom affiché sur l'écran (« Prénom Nom », ou « Anonyme »), calculé à l'enregistrement.
   donorName      String
+  /// Coordonnées du donateur (nulles pour les anciennes promesses).
+  /// Téléphone et e-mail : visibles uniquement par les administrateurs, jamais diffusés.
+  firstName      String?
+  lastName       String?
+  phone          String?
+  email          String?
+  /// Le donateur a choisi d'apparaître comme « Anonyme » sur l'écran.
+  isAnonymous    Boolean        @default(false)
   amount         Int
   currency       Currency
   isFictitious   Boolean        @default(false)
@@ -222,12 +234,33 @@ model Donation {
   updatedAt      DateTime       @updatedAt
   event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   createdBy      User?          @relation("DonationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// Catégorie de donateurs choisie (facultative) ; détachée si la catégorie est supprimée.
+  categoryId     String?
+  category       DonorCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, idempotencyKey])
   @@index([eventId, createdAt])
   @@index([eventId, ipHash, createdAt])
   @@index([eventId, deviceHash, createdAt])
+  @@index([eventId, categoryId])
   @@map("donation")
+}
+
+/// Catégories de donateurs d'un événement (au plus 3), avec un total affiché sur l'écran.
+model DonorCategory {
+  id        String     @id @default(cuid())
+  eventId   String
+  name      String
+  /// Couleur au format #rrggbb
+  color     String
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  donations Donation[]
+
+  @@index([eventId, position])
+  @@map("donor_category")
 }
 
 model ShowLayout {

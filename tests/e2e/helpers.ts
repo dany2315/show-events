@@ -12,6 +12,7 @@ export type E2EState = {
   ended: EventTokens;
   concurrency: EventTokens[];
   wifi: EventTokens;
+  rehearsal: EventTokens;
 };
 
 export function state(): E2EState {
@@ -37,6 +38,28 @@ export function money(amount: number) {
 
 export function key() {
   return `e2e${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Champs « donateur » d'une promesse envoyée par l'API publique : « Prénom Nom » → prénom, nom, téléphone.
+ * Le nom affiché sur l'écran est alors exactement `name` (un nom d'un seul mot reçoit le nom « Test »).
+ */
+export function publicDonor(name: string, extra: { phone?: string; email?: string; anonymous?: boolean } = {}) {
+  const [firstName, ...rest] = name.split(" ");
+  return { firstName, lastName: rest.join(" ") || "Test", phone: extra.phone ?? "+33 6 00 00 00 00", ...extra };
+}
+
+/** Saisie du donateur dans la Régie. */
+export async function fillRegieDonor(page: Page, firstName: string, lastName: string) {
+  await page.getByLabel("Prénom", { exact: true }).fill(firstName);
+  await page.getByLabel("Nom", { exact: true }).fill(lastName);
+}
+
+/** Saisie du donateur sur le formulaire mobile. */
+export async function fillPublicDonor(page: Page, firstName: string, lastName: string, phone = "+33 6 12 34 56 78") {
+  await page.getByLabel("Prénom", { exact: true }).fill(firstName);
+  await page.getByLabel("Nom", { exact: true }).fill(lastName);
+  await page.getByLabel("Téléphone", { exact: true }).fill(phone);
 }
 
 export async function expectTotalOnScreen(page: Page, amount: number) {

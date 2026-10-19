@@ -33,3 +33,15 @@ export function canTransition(from: EventStatusCode, to: EventStatusCode, isSupe
 export function acceptsDonations(status: EventStatusCode) {
   return status === "TEST" || status === "LIVE";
 }
+
+/**
+ * Mode test : au plus 10 promesses de test (non supprimées) par événement, toutes sources confondues
+ * (formulaire public et Régie). Vérifié atomiquement en base (src/lib/donations.ts).
+ */
+export const TEST_DONATION_LIMIT = 10;
+
+/** Nombre de promesses de test encore possibles (null hors mode test : aucune limite). */
+export function testDonationsRemaining(status: EventStatusCode, testCount: number): number | null {
+  if (status !== "TEST") return null;
+  return Math.max(0, TEST_DONATION_LIMIT - testCount);
+}

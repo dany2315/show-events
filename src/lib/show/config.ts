@@ -9,7 +9,7 @@ export const STAGE_HEIGHT = 1080;
 export type StageSize = { width: number; height: number };
 export const REFERENCE_STAGE: StageSize = { width: STAGE_WIDTH, height: STAGE_HEIGHT };
 
-export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode"] as const;
+export const BLOCK_TYPES = ["logo", "title", "total", "goal", "donations", "message", "qrcode", "categories"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
 /**
@@ -74,7 +74,7 @@ export type ShowBlock = z.infer<typeof blockSchema>;
 const blocksSchema = z.array(blockSchema).min(1).max(BLOCK_TYPES.length);
 
 /**
- * Mises en page des formats d'écran secondaires (16:10, 4:3, 21:9, 32:9, 9:16).
+ * Mises en page des formats d'écran secondaires (16:10, 4:3, 21:9, 32:9).
  * Chaque entrée est facultative : un format absent est dérivé automatiquement du 16:9
  * (`formatBlocks` dans `smart-layout.ts`). Les couleurs, l'arrière-plan, les textes,
  * les animations et la liste des dons restent communs à tous les formats.
@@ -125,6 +125,9 @@ export const DEFAULT_BLOCKS: ShowBlock[] = [
   { type: "goal", x: 37, y: 33, w: 44.5, h: 10, visible: true, align: "center", fontScale: 1 },
   { type: "donations", x: 37, y: 46.5, w: 59.8, h: 48, visible: true, align: "start", fontScale: 1 },
   { type: "qrcode", x: 84, y: 5, w: 12.8, h: 37, visible: true, align: "center", fontScale: 1 },
+  // Totaux par catégorie de donateurs : masqué tant que l'événement n'a pas de catégories ;
+  // affiché, il prend le haut de la liste des dons (voir show/categories-layout.ts).
+  { type: "categories", x: 37, y: 46.5, w: 59.8, h: 11, visible: false, align: "center", fontScale: 1 },
 ];
 
 export function defaultShowConfig(theme: ThemeId = "gala"): ShowConfig {

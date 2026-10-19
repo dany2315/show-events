@@ -41,6 +41,12 @@ export const SUGGESTED_AMOUNTS: Record<CurrencyCode, number[]> = {
 export const MAX_DONATION_AMOUNT = 10_000_000;
 export const MAX_GOAL_AMOUNT = 1_000_000_000;
 export const MAX_DONOR_NAME_LENGTH = 60;
+/** Prénom et nom du donateur (le nom affiché « Prénom Nom » reste limité à MAX_DONOR_NAME_LENGTH). */
+export const MAX_PERSON_NAME_LENGTH = 40;
+export const MAX_EMAIL_LENGTH = 160;
+/** Téléphone international souple : de 6 à 20 chiffres (indicatif compris). */
+export const PHONE_DIGITS = { min: 6, max: 20 } as const;
+export const MAX_PHONE_INPUT_LENGTH = 32;
 
 /** Limite anti-abus du formulaire public : nombre de promesses par appareil et par minute. */
 /**

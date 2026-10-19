@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { key, login } from "./helpers";
+import { key, login, publicDonor } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -48,14 +48,14 @@ test.describe("Super Admin, forfaits et cycle de vie d'un événement", () => {
     const formToken = formUrl.split("/d/")[1];
 
     // En préparation, aucune promesse n'est acceptée
-    const closed = await request.post(`/api/d/${formToken}`, { data: { donorName: "Trop tôt", amount: 10, idempotencyKey: key() } });
+    const closed = await request.post(`/api/d/${formToken}`, { data: { ...publicDonor("Trop tôt"), amount: 10, idempotencyKey: key() } });
     expect(closed.status()).toBe(409);
     expect((await closed.json()).code).toBe("EVENT_NOT_OPEN");
 
     // Mode test : gratuit, les promesses sont acceptées
     await admin.getByRole("button", { name: "Lancer un test" }).click();
     await expect(admin.getByText(/Mode test\s?: répétez toute la soirée/)).toBeVisible();
-    const testDonation = await request.post(`/api/d/${formToken}`, { data: { donorName: "Testeur", amount: 777, idempotencyKey: key() } });
+    const testDonation = await request.post(`/api/d/${formToken}`, { data: { ...publicDonor("Testeur"), amount: 777, idempotencyKey: key() } });
     expect(testDonation.status()).toBe(200);
     await admin.reload();
     await expect(admin.getByText("Testeur")).toBeVisible();
@@ -69,7 +69,7 @@ test.describe("Super Admin, forfaits et cycle de vie d'un événement", () => {
     await expect(admin.getByText(/En direct\s?: les promesses s'affichent/)).toBeVisible();
     await expect(admin.getByText("Testeur")).toHaveCount(0);
     await expect(admin.getByText("Aucune promesse pour le moment.")).toBeVisible();
-    expect((await request.post(`/api/d/${formToken}`, { data: { donorName: "Vrai don", amount: 100, idempotencyKey: key() } })).status()).toBe(200);
+    expect((await request.post(`/api/d/${formToken}`, { data: { ...publicDonor("Vrai don"), amount: 100, idempotencyKey: key() } })).status()).toBe(200);
 
     // Fin définitive : plus aucun bouton pour relancer
     await admin.getByRole("button", { name: "Terminer la collecte" }).click();
@@ -77,7 +77,7 @@ test.describe("Super Admin, forfaits et cycle de vie d'un événement", () => {
     await admin.getByRole("alertdialog").getByRole("button", { name: "Terminer la collecte" }).click();
     await expect(admin.getByText(/le direct est clos définitivement/)).toBeVisible();
     await expect(admin.getByRole("button", { name: /Rouvrir|Passer en direct|Lancer un test/ })).toHaveCount(0);
-    expect((await request.post(`/api/d/${formToken}`, { data: { donorName: "Après la fin", amount: 10, idempotencyKey: key() } })).status()).toBe(409);
+    expect((await request.post(`/api/d/${formToken}`, { data: { ...publicDonor("Après la fin"), amount: 10, idempotencyKey: key() } })).status()).toBe(409);
 
     // Second événement : création possible, mais plus de crédit pour le direct
     await createEvent(admin, slug, "Second gala E2E");

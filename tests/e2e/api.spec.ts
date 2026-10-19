@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { expect, request as playwrightRequest, test } from "@playwright/test";
-import { key, state } from "./helpers";
+import { key, publicDonor, state } from "./helpers";
 
 type Snapshot = { total: number; count: number; seq: number; donations: { id: string; donorName: string; amount: number }[] };
 
@@ -9,7 +9,7 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
     const s = state();
     const before = (await (await request.get(`/api/live/screen/${s.live.displayToken}`)).json()) as Snapshot;
     const res = await request.post(`/api/d/${s.live.formToken}`, {
-      data: { donorName: "Promesse API", amount: 321, idempotencyKey: key() },
+      data: { ...publicDonor("Promesse API"), amount: 321, idempotencyKey: key() },
       headers: { "x-forwarded-for": "10.0.0.1" },
     });
     expect(res.status()).toBe(200);
@@ -25,7 +25,7 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
   test("idempotence : un double envoi ne crée qu'une promesse", async ({ request }) => {
     const s = state();
     const k = key();
-    const body = { donorName: "Double clic", amount: 50, idempotencyKey: k };
+    const body = { ...publicDonor("Double clic"), amount: 50, idempotencyKey: k };
     const [a, b] = await Promise.all([
       request.post(`/api/d/${s.live.formToken}`, { data: body, headers: { "x-forwarded-for": "10.0.0.2" } }),
       request.post(`/api/d/${s.live.formToken}`, { data: body, headers: { "x-forwarded-for": "10.0.0.2" } }),
@@ -38,12 +38,12 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
   test("champ piège : les robots sont ignorés silencieusement", async ({ request }) => {
     const s = state();
     const res = await request.post(`/api/d/${s.live.formToken}`, {
-      data: { donorName: "Robot", amount: 999, idempotencyKey: key(), website: "http://spam" },
+      data: { ...publicDonor("Robot Malin"), amount: 999, idempotencyKey: key(), website: "http://spam" },
       headers: { "x-forwarded-for": "10.0.0.3" },
     });
     expect(res.ok()).toBeTruthy();
     const snap = (await (await request.get(`/api/live/screen/${s.live.displayToken}`)).json()) as Snapshot;
-    expect(snap.donations.some((d) => d.donorName === "Robot")).toBe(false);
+    expect(snap.donations.some((d) => d.donorName === "Robot Malin")).toBe(false);
   });
 
   test("salle entière derrière un seul Wi-Fi : 150 téléphones, même IP, aucune promesse refusée", async ({ baseURL }) => {
@@ -54,7 +54,7 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
     const responses = await Promise.all(
       phones.map(({ device, i }) =>
         ctx.post(`/api/d/${s.wifi.formToken}`, {
-          data: { donorName: `Invité ${i}`, amount: 18, idempotencyKey: key() },
+          data: { ...publicDonor(`Invité ${i}`), amount: 18, idempotencyKey: key() },
           headers: { "x-forwarded-for": "198.51.100.7", cookie: `fl_device=${device}` },
           timeout: 120_000,
         }),
@@ -69,7 +69,7 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
     const statuses: number[] = [];
     for (let i = 0; i < 6; i++) {
       const res = await request.post(`/api/d/${s.live.formToken}`, {
-        data: { donorName: `Rafale ${i}`, amount: 10, idempotencyKey: key() },
+        data: { ...publicDonor(`Rafale ${i}`), amount: 10, idempotencyKey: key() },
         headers: { "x-forwarded-for": "10.0.0.4" },
       });
       statuses.push(res.status());
@@ -81,9 +81,9 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
   test("données invalides refusées", async ({ request }) => {
     const s = state();
     for (const data of [
-      { donorName: "", amount: 10, idempotencyKey: key() },
-      { donorName: "X", amount: -5, idempotencyKey: key() },
-      { donorName: "X", amount: 100_000_000, idempotencyKey: key() },
+      { ...publicDonor(""), amount: 10, idempotencyKey: key() },
+      { ...publicDonor("X"), amount: -5, idempotencyKey: key() },
+      { ...publicDonor("X"), amount: 100_000_000, idempotencyKey: key() },
     ]) {
       const res = await request.post(`/api/d/${s.live.formToken}`, { data, headers: { "x-forwarded-for": "10.0.0.5" } });
       expect(res.status()).toBe(400);
@@ -92,7 +92,7 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
 
   test("collecte terminée : le formulaire refuse les promesses", async ({ request, page }) => {
     const s = state();
-    const res = await request.post(`/api/d/${s.ended.formToken}`, { data: { donorName: "Trop tard", amount: 10, idempotencyKey: key() } });
+    const res = await request.post(`/api/d/${s.ended.formToken}`, { data: { ...publicDonor("Trop tard"), amount: 10, idempotencyKey: key() } });
     expect(res.status()).toBe(409);
     await page.goto(`/d/${s.ended.formToken}`);
     await expect(page.getByText("Cette collecte est terminée")).toBeVisible();
@@ -107,7 +107,7 @@ test.describe("formulaire mobile et synchronisation (API)", () => {
       s.concurrency.flatMap((ev, e) =>
         amounts.map((amount, i) =>
           request.post(`/api/d/${ev.formToken}`, {
-            data: { donorName: `Charge ${e}-${i}`, amount, idempotencyKey: key() },
+            data: { ...publicDonor(`Charge ${e}-${i}`), amount, idempotencyKey: key() },
             headers: { "x-forwarded-for": `10.1.${e}.${i}` },
             timeout: 120_000,
           }),

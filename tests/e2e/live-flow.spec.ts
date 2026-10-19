@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectTotalOnScreen, login, money, state } from "./helpers";
+import { expectTotalOnScreen, fillPublicDonor, fillRegieDonor, login, money, publicDonor, state } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -34,13 +34,13 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     await page.goto(`/o/${s.orgSlug}/events/${s.live.id}/regie`);
     await expect(page.getByRole("heading", { name: "Ajouter une promesse" })).toBeVisible();
 
-    await page.getByLabel("Nom du donateur").fill("Famille Test");
+    await fillRegieDonor(page, "Famille", "Test");
     await page.getByLabel("Montant", { exact: true }).fill("1000");
     await page.getByRole("button", { name: /Ajouter au show/ }).click();
     await expect(page.getByText(/Famille Test · .*ajouté au show/)).toBeVisible();
     await expectTotalOnScreen(screen, base + 1000);
 
-    await page.getByLabel("Nom du donateur").fill("Démo fictive");
+    await fillRegieDonor(page, "Démo", "fictive");
     await page.getByRole("button", { name: "+500 €" }).click();
     await page.getByRole("switch", { name: "Don fictif" }).click();
     await page.getByRole("button", { name: /Ajouter au show/ }).click();
@@ -60,10 +60,20 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await phone.goto(`/d/${s.live.formToken}`);
     await expect(phone.getByRole("heading", { name: "Gala E2E" })).toBeVisible();
-    await phone.getByPlaceholder("Ex. Famille Cohen").fill("Mobile Tester");
+    // Champs obligatoires : prénom, nom et téléphone
     await phone.getByRole("button", { name: "100 €", exact: true }).click();
     await phone.getByRole("button", { name: /Envoyer ma promesse/ }).click();
-    await expect(phone.getByRole("heading", { name: "Merci Mobile Tester !" })).toBeVisible();
+    await expect(phone.locator("form [role=alert]")).toHaveText("Indiquez votre prénom.");
+    await fillPublicDonor(phone, "Mobile", "Tester", "");
+    await phone.getByRole("button", { name: /Envoyer ma promesse/ }).click();
+    await expect(phone.locator("form [role=alert]")).toHaveText("Indiquez votre numéro de téléphone.");
+    await expect(phone.getByLabel("Téléphone", { exact: true })).toHaveAttribute("aria-invalid", "true");
+    await phone.getByLabel("Téléphone", { exact: true }).fill("+33 6 11 22 33 44");
+    await phone.getByLabel(/^E-mail/).fill("mobile.tester@exemple.test");
+    await expect(phone.getByText(/Affiché sur l'écran\s?: Mobile Tester/)).toBeVisible();
+    await expect(phone.getByText("Vos coordonnées ne sont transmises qu'à l'organisateur.")).toBeVisible();
+    await phone.getByRole("button", { name: /Envoyer ma promesse/ }).click();
+    await expect(phone.getByRole("heading", { name: "Merci Mobile !" })).toBeVisible();
     await phone.close();
 
     await expectTotalOnScreen(screen, base + 1600);
@@ -201,7 +211,15 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     const csv = await page.request.get(`/api/events/${s.live.id}/export`);
     expect(csv.status()).toBe(200);
     expect(csv.headers()["content-type"]).toContain("text/csv");
-    expect(await csv.text()).toContain("Famille Test");
+    const text = await csv.text();
+    expect(text).toContain("Famille Test");
+    // Coordonnées visibles uniquement par l'administrateur : fiche événement et export
+    expect(text).toContain("Prénom;Nom;Téléphone;E-mail");
+    expect(text).toContain("'+33611223344");
+    expect(text).toContain("mobile.tester@exemple.test");
+    const row = page.locator("tr", { hasText: "Mobile Tester" });
+    await expect(row.getByText("+33611223344")).toBeVisible();
+    await expect(row.getByText("mobile.tester@exemple.test")).toBeVisible();
   });
 
   test("équipe : création d'un Utilisateur Show à accès limité", async ({ page, browser }) => {
@@ -244,7 +262,7 @@ test.describe("parcours d'une soirée : régie, écran géant, mobile, studio, �
     const res = await page.request.get(`/api/live/event/${s.concurrency[0].id}`);
     expect(res.status()).toBe(200); // sa propre association
     const other = await page.request.post(`/api/events/inexistant-ou-autre-asso/donations`, {
-      data: { donorName: "Intrus", amount: 10, idempotencyKey: "abcdefgh12345" },
+      data: { ...publicDonor("Intrus"), amount: 10, idempotencyKey: "abcdefgh12345" },
     });
     expect(other.status()).toBe(404);
     expect((await request.get(`/api/events/${s.live.id}/donations`)).status()).toBe(401);
